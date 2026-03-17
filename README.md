@@ -76,8 +76,3 @@ from oarepo_related_resources.proxies import current_orcid_importer
 
 person = current_orcid_importer.resolve("0000-0001-2345-6789", vocabulary="names")
 ```
-
-## Migration Note from `riv.*`
-
-If you still use old imports from `riv`, the recommended target state is to import directly from `oarepo_related_resources.*`.
-
