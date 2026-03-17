@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "oarepo-related-resources"
+version = "0.1.0"
+description = "Related resource metadata import module extracted from NMA"
+readme = "README.md"
+license = "MIT"
+authors = []
+dependencies = [
+    "oarepo[rdm,s3]>=14.0.0,<15.0.0",
+    "oarepo-runtime>=2.0.0dev0,<3.0.0",
+    "oarepo-vocabularies>=3.0.0dev6,<4.0.0",
+    "beautifulsoup4",
+    "boto3",
+    "langcodes",
+    "lxml",
+    "python-dateutil",
+    "rapidfuzz",
+]
+requires-python = ">=3.13,<3.15"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.1.2",
+]
+tests = [
+    "pytest>=7.1.2",
+    "pytest-oarepo",
+]
+oarepo14=[
+    "oarepo[rdm]>=14,<15",
+]
+
+[project.entry-points."invenio_base.api_apps"]
+related_resources_import_extension = "oarepo_related_resources.ext:RelatedResourcesImportExtension"
+
+[project.entry-points."invenio_base.apps"]
+related_resources_import_extension = "oarepo_related_resources.ext:RelatedResourcesImportExtension"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/oarepo_related_resources",
+]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true

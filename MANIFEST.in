@@ -1,0 +1,3 @@
+exclude tests/*
+include oarepo_runtime/**/*.yaml
+include oarepo_runtime/**/*.json
