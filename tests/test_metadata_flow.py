@@ -1,7 +1,27 @@
+#
+# Copyright (C) 2026 CESNET z.s.p.o.
+#
+# oarepo-rdm is free software; you can redistribute it and/or
+# modify it under the terms of the MIT License; see LICENSE file for more
+# details.
+#
+"""Test metadata flow."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from oarepo_related_resources.ext import RelatedResourcesImportExtension
 from oarepo_related_resources.resolvers.crossref import CrossrefResolver
 from oarepo_related_resources.resolvers.datacite import DataciteResolver
 from oarepo_related_resources.resolvers.handle import HandleResolver
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from flask import Flask
+
+    from oarepo_related_resources.resolvers.base import MetadataResolver
 
 
 class _MockResponse:
@@ -15,7 +35,8 @@ class _MockResponse:
         self._payload = payload or {}
         self.content = content
 
-    def json(self):
+    def json(self) -> dict:
+        """Return payload."""
         return self._payload
 
 
@@ -23,20 +44,20 @@ class _MockSession:
     def __init__(self, responses: list[_MockResponse]):
         self.responses = responses
 
-    def get(self, *, url: str, timeout: int, **kwargs):
+    def get(self, *, url: str, timeout: int, **kwargs: Any) -> _MockResponse:
+        _, _, _ = url, timeout, kwargs
         if len(self.responses) > 1:
             return self.responses.pop(0)
         return self.responses[0]
 
 
-def _resolver(app, resolver_cls):
+def _resolver(app: Flask, resolver_cls: MetadataResolver) -> MetadataResolver:
+    """Get resolver."""
     ext = RelatedResourcesImportExtension(app)
-    return next(
-        r for r in ext.persistent_identifiers_resolvers if isinstance(r, resolver_cls)
-    )
+    return next(r for r in ext.persistent_identifiers_resolvers if isinstance(r, resolver_cls))
 
 
-def test_mock_zenodo_doi_returns_metadata(app):
+def test_mock_zenodo_doi_returns_metadata(app: Flask):
     doi = "https://doi.org/10.5281/zenodo.19032692"
     resolver = _resolver(app, DataciteResolver)
     resolver.session = _MockSession(
@@ -46,9 +67,7 @@ def test_mock_zenodo_doi_returns_metadata(app):
                     "data": {
                         "attributes": {
                             "titles": [{"title": "Zenodo mock dataset"}],
-                            "creators": [
-                                {"name": "Novak, Eva", "nameType": "Personal"}
-                            ],
+                            "creators": [{"name": "Novak, Eva", "nameType": "Personal"}],
                             "publicationYear": "2025",
                             "types": {"resourceTypeGeneral": "Dataset"},
                         }
@@ -78,7 +97,7 @@ def test_mock_zenodo_doi_returns_metadata(app):
     }
 
 
-def test_mock_crossref_doi_returns_metadata(app):
+def test_mock_crossref_doi_returns_metadata(app: Flask):
     doi = "https://doi.org/10.1038/s41586-020-2649-2"
     resolver = _resolver(app, CrossrefResolver)
     resolver.session = _MockSession(
@@ -114,7 +133,7 @@ def test_mock_crossref_doi_returns_metadata(app):
     }
 
 
-def test_mock_handle_returns_metadata(app):
+def test_mock_handle_returns_metadata(app: Flask):
     pid = "https://hdl.handle.net/11234/1"
     resolver = _resolver(app, HandleResolver)
     resolver.session = _MockSession(

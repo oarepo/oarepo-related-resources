@@ -1,14 +1,41 @@
+#
+# Copyright (C) 2026 CESNET z.s.p.o.
+#
+# oarepo-rdm is free software; you can redistribute it and/or
+# modify it under the terms of the MIT License; see LICENSE file for more
+# details.
+#
+"""Conftest."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 from flask import Flask
 
+if TYPE_CHECKING:
+    from typing import Any
+
 
 class _DummyDomain:
-    def gettext(self, message, **variables):
+    """Minimal mock of a Babel domain used for testing.
+
+    Provides basic gettext and ngettext implementations with
+    simple string interpolation support.
+    """
+
+    def gettext(self, message: str, **variables: Any) -> str:
+        """Return the translated message.
+
+        If variables are provided, apply %-style string formatting.
+        """
         if variables:
             return message % variables
         return message
 
-    def ngettext(self, singular, plural, n, **variables):
+    def ngettext(self, singular: str, plural: str, n: int, **variables: Any) -> str:
+        """Return singular or plural form."""
         message = singular if n == 1 else plural
         if variables:
             return message % variables
@@ -16,10 +43,12 @@ class _DummyDomain:
 
 
 class _DummyBabel:
-    domain = _DummyDomain()
+    """Minimal mock of Flask-Babel extension for testing."""
+
+    domain: _DummyDomain = _DummyDomain()
 
 
-@pytest.fixture()
+@pytest.fixture
 def app():
     app = Flask(__name__)
     app.config["TESTING"] = True

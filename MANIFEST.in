@@ -1,3 +1,16 @@
-exclude tests/*
-include oarepo_runtime/**/*.yaml
-include oarepo_runtime/**/*.json
+recursive-exclude tests *
+recursive-include oarepo_related_resources *.yaml
+recursive-include oarepo_related_resources *.json
+recursive-include oarepo_related_resources *.po
+recursive-include oarepo_related_resources *.pot
+recursive-include oarepo_related_resources *.mo
+recursive-include oarepo_related_resources *.js
+recursive-include oarepo_related_resources *.jsx
+recursive-include oarepo_related_resources *.less
+recursive-include oarepo_related_resources *.jinja
+recursive-include oarepo_related_resources *.overrides
+recursive-include oarepo_related_resources *.variables
+recursive-include oarepo_related_resources *.scss
+recursive-include oarepo_related_resources *.png *.svg
+recursive-include oarepo_related_resources *.css
+recursive-include oarepo_related_resources *.jinja2

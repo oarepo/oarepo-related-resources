@@ -6,9 +6,14 @@
 # nma is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
-import re
-from xml.etree import ElementTree as ET
+"""Related resources Crossref DOI resolver."""
 
+from __future__ import annotations
+
+import re
+from http import HTTPStatus
+
+from defusedxml.ElementTree import fromstring
 from flask import current_app
 from idutils.normalizers import normalize_doi
 from idutils.validators import is_doi
@@ -17,6 +22,7 @@ from invenio_i18n import lazy_gettext as _
 from invenio_vocabularies.proxies import current_service as vocabulary_service
 from marshmallow_utils.fields import EDTFDateString
 
+from ..resolvers import MetadataResolver
 from .base import (
     CREATORS_PLACEHOLDER,
     PUBLICATION_DATE_PLACEHOLDER,
@@ -26,7 +32,6 @@ from .base import (
     ResolverProblemLevel,
 )
 from .utils import handle_errors
-from ..resolvers import MetadataResolver
 
 """Crossref resolver to retrieve RDM-like metadata based on PID.
 
@@ -44,86 +49,66 @@ But currently returns "Resource not found."
 example: https://api.crossref.org/works/doi/10.64000/wadve-3tj60&mailto=info@eosc.cz
 """
 
+MIN_TITLE_LENGTH = 3
+HTTP_OK = 200
+HTTP_NOT_FOUND = 404
+
 
 class CrossrefResolver(MetadataResolver):
     """Crossref resolver."""
 
     name = "Crossref"
 
-    def can_resolve(self, persistent_url: str) -> bool:
-        return is_doi(persistent_url)
+    def can_resolve(self, identifier: str) -> bool:
+        """Check if the identifier is a valid DOI."""
+        return bool(is_doi(identifier))
 
-    def resolve(self, persistent_url: str) -> (dict | None, str):
-        """
-        Resolves metadata associated with a given identifier using the Crossref API.
-
-        This method retrieves data related to a specified identifier by making a request to
-        the Crossref API. Depending on the response status code, it processes the result
-        accordingly. Data regarding the title of the work and author details such as names
-        and ORCID identifiers (if available) are extracted and returned in a structured format.
-        The function also handles scenarios like rate-limiting, blocked requests, and errors.
-
-        Parameters:
-            identifier (str): The identifier of the resource to retrieve metadata for.
-
-        Returns:
-            tuple[dict | None, str]: A tuple where the first element is a dictionary containing
-            retrieved metadata (if successful) or None (on failure), and the second element
-            is a string message reflecting the status or any error message.
-
-        Raises:
-            None
-        """
+    def resolve(self, identifier: str) -> tuple[dict | None, list[ResolverProblem]]:
+        """Resolve metadata associated with a given identifier using the Crossref API."""
         crossref_url = current_app.config["CROSSREF_URL"]
-        doi = normalize_doi(persistent_url)
+        doi = normalize_doi(identifier)
 
         url = f"{crossref_url}/{doi}"
         response = self.session.get(url=url, timeout=self.resolve_timeout)
-        if response.status_code != 200:
-            if response.status_code == 404:
+        if response.status_code != HTTP_OK:
+            if response.status_code == HTTP_NOT_FOUND:
                 return {}, [
                     ResolverProblem(
                         resolver=self.name,
-                        message=_(
-                            "The identifier looks like a DOI, but it was not found in the CrossRef registry."
+                        message=str(
+                            _(
+                                "The identifier looks like a DOI, but \
+                        it was not found in the CrossRef registry."
+                            )
                         ),
                         level=ResolverProblemLevel.ERROR,
                     )
                 ]
-            else:
-                current_app.logger.error(
-                    "Unexpected error while resolving the CrossRef DOI. Response code: %s, content: %s",
-                    response.status_code,
-                    response.content,
+            current_app.logger.error(
+                "Unexpected error while resolving the CrossRef DOI. Response code: %s, content: %s",
+                response.status_code,
+                response.content,
+            )
+            return {}, [
+                ResolverProblem(
+                    resolver=self.name,
+                    message=str(_("Unexpected error while resolving the DOI. Please fill the metadata manually.")),
+                    level=ResolverProblemLevel.ERROR,
                 )
-                return {}, [
-                    ResolverProblem(
-                        resolver=self.name,
-                        message=_(
-                            "Unexpected error while resolving the DOI. Please fill the metadata manually."
-                        ),
-                        level=ResolverProblemLevel.ERROR,
-                    )
-                ]
+            ]
 
         metadata = {}
-        problems = []
+        problems: list[ResolverProblem] = []
         data = response.json()
         crossref_metadata = data.get("message", {})
 
         crossref_titles = crossref_metadata.get("title", [])
-        metadata["title"] = self.resolve_title(
-            titles=crossref_titles, problems=problems
-        )
+        metadata["title"] = self.resolve_title(titles=crossref_titles, problems=problems)
 
         crossref_authors = crossref_metadata.get("author", [])
-        metadata["creators"] = self.resolve_crossref_authors(
-            authors=crossref_authors, problems=problems
-        )
+        metadata["creators"] = self.resolve_crossref_authors(authors=crossref_authors, problems=problems)
 
-        publication_date_parts = crossref_metadata.get("deposited", {}).get(
-            "date-parts"
-        )
+        publication_date_parts = crossref_metadata.get("deposited", {}).get("date-parts")
         metadata["publication_date"] = self.resolve_crossref_publication_date(
             publication_date_parts=publication_date_parts, problems=problems
         )
@@ -131,43 +116,46 @@ class CrossrefResolver(MetadataResolver):
 
         crossref_abstract = crossref_metadata.get("abstract")
         if crossref_abstract:
-            metadata["description"] = self.resolve_crossref_abstract(
-                jats_snippet=crossref_abstract
-            )
+            metadata["description"] = self.resolve_crossref_abstract(jats_snippet=crossref_abstract)
 
         return metadata, problems
 
     @handle_errors(error_placeholder=TITLE_PLACEHOLDER, alert_user=True)
-    def resolve_title(self, titles, problems):
+    def resolve_title(self, titles: list, problems: list) -> str:
+        """Extract the main title from Crossref metadata and validate its length."""
         for title in titles:
-            if len(title) < 3:
+            if len(title) < MIN_TITLE_LENGTH:
                 problems.append(
                     ResolverProblem(
                         resolver=self.name,
-                        message=_(
-                            "The title is too short. A minimum of 3 characters is required to meet repository requirements."
+                        message=str(
+                            _(
+                                "The title is too short. "
+                                "A minimum of 3 characters is required to meet repository requirements."
+                            )
                         ),
                         level=ResolverProblemLevel.WARNING,
                     )
                 )
                 return f"Incompatible title: {title} (please provide a corrected title)"
-            return title
+            return str(title)
         problems.append(
             ResolverProblem(
                 resolver=self.name,
-                message=_("Missing title."),
+                message=str(_("Missing title.")),
                 level=ResolverProblemLevel.WARNING,
             )
         )
         return TITLE_PLACEHOLDER  # should never happen
 
     @handle_errors(error_placeholder=CREATORS_PLACEHOLDER, alert_user=True)
-    def resolve_crossref_authors(self, authors, problems):
+    def resolve_crossref_authors(self, authors: list, problems: list) -> list:
+        """Extract and map author information from Crossref metadata."""
         if len(authors) == 0:
             problems.append(
                 ResolverProblem(
                     resolver=self.name,
-                    message=_("Missing creators."),
+                    message=str(_("Missing creators.")),
                     level=ResolverProblemLevel.WARNING,
                 )
             )
@@ -183,30 +171,28 @@ class CrossrefResolver(MetadataResolver):
                 creator_obj["given_name"] = crossref_author.get("given", "")
                 creator_obj["name"] += ", " + crossref_author.get("given", "")
             if crossref_author.get("ORCID"):
-                orcid_id = crossref_author.get("ORCID", "").removeprefix(
-                    "https://orcid.org/"
-                )
-                creator_obj["identifiers"] = [
-                    {"identifier": orcid_id, "scheme": "orcid"}
-                ]
+                orcid_id = crossref_author.get("ORCID", "").removeprefix("https://orcid.org/")
+                creator_obj["identifiers"] = [{"identifier": orcid_id, "scheme": "orcid"}]
             creator_list.append({"person_or_org": creator_obj})
         return creator_list
 
     @handle_errors(PUBLICATION_DATE_PLACEHOLDER)
-    def resolve_crossref_publication_date(self, *, publication_date_parts, problems):
-
+    def resolve_crossref_publication_date(self, *, publication_date_parts: list | None, problems: list) -> str:
+        """Parse and validate publication date parts into an EDTF-compatible string."""
+        if not publication_date_parts:
+            return PUBLICATION_DATE_PLACEHOLDER
         try:
-            publication_date_parts = publication_date_parts[0]
+            parts = publication_date_parts[0]
+            if not isinstance(parts, (list, tuple)):
+                return PUBLICATION_DATE_PLACEHOLDER
             publication_date = "-".join(f"{x:02d}" for x in publication_date_parts[:3])
             edtf_date_string = EDTFDateString()
             edtf_date_string.deserialize(publication_date)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             problems.append(
                 ResolverProblem(
                     resolver=self.name,
-                    message=_(
-                        f"Invalid publication date-parts format: {publication_date_parts}."
-                    ),
+                    message=_("Invalid publication date-parts format: %s.") % publication_date_parts,
                     level=ResolverProblemLevel.WARNING,
                     original_exception=e,
                 )
@@ -215,19 +201,21 @@ class CrossrefResolver(MetadataResolver):
         return publication_date
 
     @handle_errors(RESOURCE_TYPE_PLACEHOLDER)
-    def resolve_crossref_resource_type(self, *, resource_type, problems):
+    def resolve_crossref_resource_type(self, *, resource_type: dict, problems: list) -> dict:
+        """Resolve and validate the Crossref resource type against the vocabulary."""
         vocabulary_id = "resourceTypeGeneral"
         _type = resource_type.get("type", RESOURCE_TYPE_PLACEHOLDER).lower()
         try:
-            vocabulary_service.read(system_identity, (vocabulary_id, _type))
-            return {"id": _type}
+            vocabulary_service.read(system_identity, (vocabulary_id, _type))  # type: ignore[arg-type]
+
         except Exception as e:
             problems.append(
                 ResolverProblem(
                     resolver=self.name,
                     message=_(
-                        f"The provided resource type {_type} could not be parsed. The default value 'other' has been applied."
-                    ),
+                        "The provided resource type %s could not be parsed. The default value 'other' has been applied."
+                    )
+                    % _type,
                     level=ResolverProblemLevel.WARNING,
                     original_exception=e,
                 )
@@ -238,12 +226,15 @@ class CrossrefResolver(MetadataResolver):
                 vocabulary_id,
             )
             return {"id": RESOURCE_TYPE_PLACEHOLDER}
+        else:
+            return {"id": _type}
 
     @handle_errors()
     def resolve_crossref_abstract(self, jats_snippet: str) -> str:
+        """Parse and extract plain text abstract from a JATS XML snippet."""
         # Crossref often gives fragments, so wrap in a root element
         wrapped = f"<root xmlns:jats='http://www.ncbi.nlm.nih.gov/JATS1'>{jats_snippet}</root>"
-        root = ET.fromstring(wrapped)
+        root = fromstring(wrapped)
 
         parts = []
         for el in root.iter():
@@ -258,17 +249,17 @@ class CrossrefResolver(MetadataResolver):
 
         return "\n\n".join(parts).strip()
 
-    def exists(self, persistent_url: str) -> (dict | None, list[ResolverProblem]):
+    def exists(self, identifier: str) -> bool:
+        """Check if the DOI exists in the Crossref registry."""
         crossref_url = current_app.config["CROSSREF_URL"]
-        doi = normalize_doi(persistent_url)
+        doi = normalize_doi(identifier)
 
         url = f"{crossref_url}/{doi}"
         response = self.session.get(url=url, timeout=self.resolve_timeout)
-        if response.status_code != 200:
-            return False
-        return True
+        return bool(response.status_code == HTTPStatus.OK)
 
     def generate_id(self, identifier: str) -> str:
+        """Generate an internal DOI-based identifier from a DOI URL."""
         pattern = r"https://doi.org/(.*)"
         m = re.match(pattern, identifier)
         if m:

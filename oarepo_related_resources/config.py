@@ -3,10 +3,12 @@
 #
 # This file is a part of nma (see https://github.com/EOSC-CZ/nma).
 #
-# oarepo-runtime is free software; you can redistribute it and/or modify it
+# oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
 """Related resources import config."""
+
+from __future__ import annotations
 
 PERSISTENT_IDENTIFIER_RESOLVERS = [
     "oarepo_related_resources.resolvers.DataciteResolver",
