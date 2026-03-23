@@ -185,7 +185,7 @@ class CrossrefResolver(MetadataResolver):
             parts = publication_date_parts[0]
             if not isinstance(parts, (list, tuple)):
                 return PUBLICATION_DATE_PLACEHOLDER
-            publication_date = "-".join(f"{x:02d}" for x in publication_date_parts[:3])
+            publication_date = "-".join(f"{x:02d}" for x in parts[:3])
             edtf_date_string = EDTFDateString()
             edtf_date_string.deserialize(publication_date)
         except Exception as e:  # noqa: BLE001
