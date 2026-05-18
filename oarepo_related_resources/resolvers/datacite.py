@@ -9,289 +9,313 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any, override
 
-import langcodes
 from flask import current_app
-from idutils.normalizers import normalize_doi
-from idutils.validators import is_doi
-from invenio_access.permissions import system_identity
 from invenio_i18n import lazy_gettext as _
-from invenio_rdm_records.services.schemas.metadata import (
-    record_identifiers_schemes,
-    record_personorg_schemes,
-    record_related_identifiers_schemes,  # type: ignore[attr-defined]
-)
-from invenio_vocabularies.proxies import current_service as vocabulary_service
-from marshmallow import ValidationError
-from marshmallow_utils.fields import EDTFDateString
 
-from ..resolvers import MetadataResolver
+from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
-    CREATORS_PLACEHOLDER,
-    PUBLICATION_DATE_PLACEHOLDER,
-    RESOURCE_TYPE_PLACEHOLDER,
-    TITLE_PLACEHOLDER,
-    ResolverProblem,
-    ResolverProblemLevel,
+    DoiResolverBase,
 )
-from .utils import escape_lucene, handle_errors, validate_date
+from .utils import (
+    build_person_or_org,
+    escape_lucene,
+    handle_errors,
+    lookup_vocabulary_by_prop,
+    lookup_vocabulary_by_prop_handle_multiple,
+    resolve_language,
+    split_personal_name,
+    vocabulary_entry_exists,
+)
 
-MIN_TITLE_LENGTH = 3
-HTTP_OK = 200
-HTTP_NOT_FOUND = 404
+if TYPE_CHECKING:
+    from requests import Response
 
 
-class DataciteResolver(MetadataResolver):
+class DataciteResolver(DoiResolverBase):
     """Datacite resolver."""
 
-    name = "Datacite"
+    provider = "Datacite"
 
-    def can_resolve(self, identifier: str) -> bool:
-        """Check if the identifier is a valid DOI."""
-        return bool(is_doi(identifier))
+    not_found_message = _("The identifier looks like a DOI, but it was not found in the DataCite registry.")
+    unexpected_error_message = _("Unexpected error while resolving the DOI. Please fill the metadata manually.")
 
-    def resolve_metadata(self, datacite_metadata: dict) -> tuple[dict, list[ResolverProblem]]:  # noqa: PLR0915, PLR0912, C901
-        """Extract and map DataCite metadata fields into the target metadata structure."""
-        metadata = {}
-        problems: list[ResolverProblem] = []
-        # (main) title
-        # datacite required, rdm required
-        datacite_titles = datacite_metadata.get("titles", [])
-        main_title = self.resolve_datacite_main_title(titles=datacite_titles, problems=problems)
-        metadata["title"] = main_title
+    fields_to_resolve = (
+        "title",
+        "creators",
+        "additional_titles",
+        "publication_date",
+        "resource_type",
+        "publisher",
+        "contributors",
+        "description",
+        "dates",
+        "subjects",
+        "language",
+        "related_identifiers",
+        "additional_descriptions",
+        "sizes",
+        "formats",
+        "version",
+        "rights",
+        "identifiers",
+    )
 
-        # additional titles
-        # not required
-        additional_titles = self.resolve_datacite_additional_titles(titles=datacite_titles)
-        if isinstance(additional_titles, list) and additional_titles:
-            metadata["additional_titles"] = additional_titles
+    @override
+    def get_metadata(self, response: Response) -> dict:
+        return response.json()["data"]["attributes"]  # type: ignore[no-any-return]
 
-        # creators
-        # datacite required, rdm required
-        datacite_creators = datacite_metadata.get("creators", [])
-        creators = self.resolve_datacite_creators(creators=datacite_creators, problems=problems)
-        metadata["creators"] = creators
+    @handle_errors()
+    def resolve_additional_descriptions(self) -> None:
+        """Extract and map non-abstract descriptions from DataCite metadata."""
+        des_list = []
+        for d in self.metadata.get("descriptions", []):
+            _type = d.get("descriptionType")
+            description = d.get("description")
 
-        # publication date
-        # datacite required, rdm required
-        publication_date = datacite_metadata.get("publicationYear")
-        metadata["publication_date"] = self.resolve_datacite_publication_date(
-            publication_date=publication_date, problems=problems
-        )
+            if description and isinstance(_type, str) and _type != "Abstract" and isinstance(description, str):
+                d_type = re.sub(r"(?<!^)([A-Z])", r"-\1", _type).lower()
+                if not vocabulary_entry_exists("descriptiontypes", d_type):
+                    continue
+                description_obj: dict[str, Any] = {}
+                description_obj["type"] = {"id": d_type}
+                description_obj["description"] = description
+                d_lang = d.get("lang")
+                if not isinstance(d_lang, str):
+                    continue
+                lang = resolve_language(d_lang)
+                if lang:
+                    description_obj["lang"] = {"id": lang}
+                des_list.append(description_obj)
+        if des_list:
+            self.processed_metadata["additional_descriptions"] = des_list
 
-        # resource type
-        # datacite required, rdm required
-        datacite_resource_type = datacite_metadata.get("types", {})
-        metadata["resource_type"] = {
-            "id": self.resolve_datacite_resource_type(resource_type=datacite_resource_type, problems=problems)
-        }
+    @handle_errors()
+    def resolve_description(self) -> None:
+        """Extract the abstract description from DataCite metadata."""
+        for d in self.metadata.get("descriptions", []):
+            _type = d.get("descriptionType")
+            description = d.get("description")
+            if _type == "Abstract":
+                self.processed_metadata["description"] = description
+                break
 
-        # publisher
-        # not required
-        datacite_publisher = datacite_metadata.get("publisher")
-        publisher = self.resolve_datacite_publisher(publisher=datacite_publisher)
-        if publisher:
-            metadata["publisher"] = publisher
-
-        # contributors
-        # not required
-        datacite_contributors = datacite_metadata.get("contributors", [])
-        contributors = self.resolve_datacite_contributors(contributors=datacite_contributors)
-        if len(contributors) > 0:
-            metadata["contributors"] = contributors
-
-        # dates
-        # not required
-        datacite_dates = datacite_metadata.get("dates", [])
-        dates = self.resolve_datacite_dates(dates=datacite_dates)
-        if len(dates) > 0:
-            metadata["dates"] = dates
-
-        # subjects
-        datacite_subjects = datacite_metadata.get("subjects", [])
-        subjects = self.resolve_datacite_subjects(datacite_subjects)
-        if len(subjects) > 0:
-            metadata["subjects"] = subjects
-
-        # language
-        # not required
-        # one string in datacite, list of voc in rdm
-        datacite_language = datacite_metadata.get("language")
-        language = self.resolve_datacite_language(language=datacite_language)
+    @handle_errors()
+    def resolve_language(self) -> None:
+        """Resolve and validate the language of the record."""
+        datacite_language = self.metadata.get("language")
+        language = resolve_language(datacite_language)
         if language:
-            metadata["languages"] = [{"id": language}]
+            self.processed_metadata["languages"] = [{"id": language}]
 
-        # related identifiers
-        # not required
-        related_identifiers = self.resolve_related_identifiers(datacite_metadata.get("relatedIdentifiers", []))
-        if len(related_identifiers) > 0:
-            metadata["related_identifiers"] = related_identifiers
+    @handle_errors()
+    def resolve_related_identifiers(self) -> None:
+        """Resolve and validate related identifiers and their relation types."""
+        result = []
+        for rel in self.metadata.get("relatedIdentifiers", []):
+            identifier = rel.get("relatedIdentifier")
+            scheme = rel.get("relatedIdentifierType")
+            rel_type = rel.get("relationType")
+            if scheme:
+                scheme = scheme.lower()
+            obj = {"identifier": identifier, "scheme": scheme}
+            resolved_rel_type = lookup_vocabulary_by_prop("relationtypes", rel_type)
+            if resolved_rel_type is None:  # no duplicate values found in rdm fixtures
+                continue
+            obj["relation_type"] = {"id": resolved_rel_type}
 
-        # descriptions
-        datacite_descriptions = datacite_metadata.get("descriptions", [])
-        description = self.resolve_datacite_descriptions(descriptions=datacite_descriptions)
-        if description:
-            metadata["description"] = description
+            res_type = rel.get("resourceTypeGeneral")
+            if res_type:
+                # duplicate values possible here
+                resolved_type = lookup_vocabulary_by_prop_handle_multiple(
+                    "resourcetypes", res_type, prop="datacite_general"
+                )
+                if resolved_type is not None:
+                    obj["resource_type"] = {"id": resolved_type}
 
-        # additional descriptions
-        # not required
-        additional_desc = self.resolve_datacite_additional_descriptions(descriptions=datacite_descriptions)
-        if len(additional_desc) > 0:
-            metadata["additional_descriptions"] = additional_desc
+            result.append(obj)
 
-        # sizes
-        # not required
-        # array of text
-        datacite_sizes = datacite_metadata.get("sizes", [])
-        sizes = self.resolve_datacite_strlist(strlist=datacite_sizes)
-        if len(sizes) > 0:
-            metadata["sizes"] = sizes
+        if result:
+            self.processed_metadata["related_identifiers"] = result
 
-        # format
-        # not required
-        # array of text
-        datacite_formats = datacite_metadata.get("formats", [])
-        formats = self.resolve_datacite_strlist(strlist=datacite_formats)
-        if len(formats) > 0:
-            metadata["formats"] = formats
+    @handle_errors()
+    def resolve_publication_date(self) -> None:
+        """Copy ``publicationYear`` from DataCite metadata into ``publication_date``."""
+        publication_date = self.metadata.get("publicationYear")
+        if publication_date:
+            self.processed_metadata["publication_date"] = str(publication_date)
 
-        # version
-        # not required
-        datacite_version = datacite_metadata.get("version")
-        if isinstance(datacite_version, str) and datacite_version:
-            metadata["version"] = datacite_version
+    @handle_errors()
+    def resolve_dates(self) -> None:
+        """Validate and map DataCite date entries to the target format."""
+        dates_list = []
+        for d in self.metadata.get("dates", []):
+            date_object: dict[str, Any] = {}
+            date = d.get("date")
+            _type = d.get("dateType")
+            # no duplicate values found in rdm fixtures
+            # TODO: more effort to systematize missing vocabularies (eg. it logs error but does not return it user here)
+            resolved_datatype = lookup_vocabulary_by_prop("datetypes", _type)
+            if resolved_datatype is None:
+                continue
+            date_object["date"] = str(date)
+            date_object["type"] = {"id": resolved_datatype}
+            dates_list.append(date_object)
+        if dates_list:
+            self.processed_metadata["dates"] = dates_list
 
-        # rights
-        # not required
-        datacite_rights = datacite_metadata.get("rightsList", [])
-        rights = self.resolve_datacite_rights(rights=datacite_rights)
-        if len(rights) > 0:
-            metadata["rights"] = rights
+    @handle_errors()
+    def resolve_rights(self) -> None:
+        """Resolve and validate rights identifiers against the licenses vocabulary."""
+        rights_list = []
+        for r in self.metadata.get("rightsList", []):
+            code = r.get("rightsIdentifier")
+            if code and vocabulary_entry_exists("licenses", code):
+                rights_list.append({"id": code})
+        if rights_list:
+            self.processed_metadata["rights"] = rights_list
 
-        # identifiers
+    @handle_errors()
+    def resolve_publisher(self) -> None:
+        """Copy the ``publisher`` field from DataCite metadata when present."""
+        if self.metadata.get("publisher"):
+            self.processed_metadata["publisher"] = self.metadata.get("publisher")
+
+    @handle_errors()
+    def resolve_subjects(self) -> None:
+        """Extract unique subject values from DataCite metadata."""
+        subjects_list = []
+        seen = set()
+        for s in self.metadata.get("subjects", []):
+            if not isinstance(s, dict):
+                continue
+
+            value = s.get("subject")
+            if not value or not isinstance(value, str):
+                continue
+            if value in seen:
+                continue
+            seen.add(value)
+            subjects_list.append({"subject": value})
+        if subjects_list:
+            self.processed_metadata["subjects"] = subjects_list
+
+    @handle_errors(alert_user=True)
+    def resolve_title(self) -> None:
+        """Extract the main title from DataCite metadata and validate its length."""
+        titles = [t["title"] for t in self.metadata.get("titles", []) if "title" in t and "titleType" not in t]
+        if titles:
+            self.processed_metadata["title"] = titles[0]
+
+    @handle_errors()
+    def resolve_additional_titles(self) -> None:
+        """Extract and map additional titles from DataCite metadata."""
+        additional_titles = []
+        for title in self.metadata.get("titles", []):
+            title_obj = {}
+            t_type = title.get("titleType")
+            if t_type is None:  # it is main title
+                continue
+            resolved_type = lookup_vocabulary_by_prop("titletypes", t_type)  # no duplicate values found in rdm fixtures
+            if resolved_type is None:
+                continue
+            t_lang = None
+            title_obj["title"] = title.get("title")
+            title_obj["type"] = {"id": resolved_type}
+
+            if "lang" in title:
+                t_lang = resolve_language(title["lang"])
+            if t_lang:
+                title_obj["lang"] = {"id": t_lang}
+            additional_titles.append(title_obj)
+
+        if additional_titles:
+            self.processed_metadata["additional_titles"] = additional_titles
+
+    @handle_errors(alert_user=True)
+    def resolve_creators(self) -> None:
+        """Extract and map creator information from DataCite metadata."""
+        creators = [self._resolve_datacite_author(creator, "creator") for creator in self.metadata.get("creators", [])]
+        if creators:
+            self.processed_metadata["creators"] = creators
+
+    @handle_errors()
+    def resolve_contributors(self) -> None:
+        """Extract and map contributor information including roles and affiliations."""
+        contributor_list = []
+        for contributor in self.metadata.get("contributors", []):
+            entry = self._resolve_datacite_author(contributor, "contributor")
+            if not entry:
+                continue
+            # Resolve contributor role
+            role = contributor.get("contributorType")
+            resolved_role = lookup_vocabulary_by_prop(
+                "contributorsroles", role
+            )  # no contributorroles vocabulary in rdm fixtures
+            if resolved_role:
+                entry["role"] = {"id": resolved_role}
+            contributor_list.append(entry)
+
+        if contributor_list:
+            self.processed_metadata["contributors"] = contributor_list
+
+    @handle_errors()
+    def resolve_resource_type(self) -> None:
+        """Resolve and map the DataCite resource type to a vocabulary identifier."""
+        resource_type = self.metadata.get("types", {})
+        vocabulary_id = "resourcetypes"
+        _type = resource_type.get("resourceTypeGeneral") or "Other"
+
+        escaped = escape_lucene(_type)
+        if escaped == "Image":
+            self.processed_metadata["resource_type"] = {"id": "image"}
+            return
+        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped.lower())
+        if not resolved_type:
+            self._add_problem(
+                _("The provided resource type %s could not be parsed. The default value %s has been applied.")
+                % (_type, RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE),
+            )
+            self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+            return
+        self.processed_metadata["resource_type"] = {"id": resolved_type}
+
+    @handle_errors()
+    def resolve_identifiers(self) -> None:
+        """Resolve and map identifiers from DataCite metadata."""
         identifiers = [
             {
                 "identifier": id_with_scheme["identifier"],
                 "scheme": id_with_scheme["identifierType"].lower(),
             }
-            for id_with_scheme in datacite_metadata.get("identifiers", [])
-            if id_with_scheme["identifierType"].lower() in record_identifiers_schemes
+            for id_with_scheme in self.metadata.get("identifiers", [])
         ]
-        metadata["identifiers"] = identifiers
-        for identifier in identifiers:
-            if identifier["scheme"] == "doi":
-                metadata["persistent_url"] = f"https://doi.org/{identifier['identifier']}"
-                break
-
-        return metadata, problems
-
-    def generate_id(self, identifier: str) -> str:
-        """Generate an internal DOI-based identifier from a DOI URL."""
-        pattern = r"https://doi.org/(.*)"
-        m = re.match(pattern, identifier)
-        if m:
-            return f"doi/{m.group(1)}"
-        raise ValueError(f"Could not generate pid from url: {identifier}")
-
-    def normalize(self, identifier: str) -> str:
-        """Normalize the identifier by lowercasing it for case-insensitive DOI comparison."""
-        return super().normalize(identifier).lower()
-
-    def exists(self, identifier: str) -> bool:
-        """Check if the DOI exists in the DataCite registry."""
-        datacite_url = current_app.config.get("DATACITE_URL")
-        doi = normalize_doi(identifier)
-        url = f"{datacite_url}/{doi}"
-        response = self.session.get(url=url, timeout=self.resolve_timeout)
-        return bool(response.status_code == HTTP_OK)
-
-    def resolve(self, identifier: str) -> tuple[dict | None, list[ResolverProblem]]:
-        """Fetch DataCite metadata for a DOI and resolve it into structured metadata."""
-        datacite_url = current_app.config.get("DATACITE_URL")
-        doi = normalize_doi(identifier)
-        url = f"{datacite_url}/{doi}"
-        response = self.session.get(url=url, timeout=self.resolve_timeout)
-        if response.status_code != HTTP_OK:
-            if response.status_code == HTTP_NOT_FOUND:
-                return {}, [
-                    ResolverProblem(
-                        resolver=self.name,
-                        message=str(
-                            _(
-                                "The identifier looks like a DOI, but it was\
-                         not found in the DataCite registry."
-                            )
-                        ),
-                        level=ResolverProblemLevel.ERROR,
-                    )
-                ]
-            current_app.logger.error(
-                "Unexpected error while resolving the datacite DOI. Response code: %s, content: %s",
-                response.status_code,
-                response.content,
-            )
-            return {}, [
-                ResolverProblem(
-                    resolver=self.name,
-                    message=str(_("Unexpected error while resolving the DOI. Please fill the metadata manually.")),
-                    level=ResolverProblemLevel.ERROR,
-                )
-            ]
-
-        data = response.json()
-        datacite_metadata = data["data"]["attributes"]
-
-        return self.resolve_metadata(datacite_metadata=datacite_metadata)
+        self.processed_metadata["identifiers"] = identifiers
 
     @handle_errors()
-    def resolve_datacite_additional_descriptions(self, descriptions: list) -> list:
-        """Extract and map non-abstract descriptions from DataCite metadata."""
-        des_list = []
-        for d in descriptions:
-            _type = d.get("descriptionType")
-            description = d.get("description")
-            if description and _type != "Abstract":
-                description_obj: dict[str, Any] = {}
-                if isinstance(description, str) and description and len(description) >= MIN_TITLE_LENGTH:
-                    description_obj["description"] = description
-                else:
-                    continue
-                if isinstance(_type, str):
-                    d_type = re.sub(r"(?<!^)([A-Z])", r"-\1", _type).lower()
-                    try:
-                        vocabulary_service.read(system_identity, ("descriptiontypes", d_type))  # type: ignore[arg-type]
-                        description_obj["type"] = {"id": d_type}
-                    except Exception as e:
-                        _ = e
-                        current_app.logger.exception(
-                            "Record '%s' was not found in the '%s' vocabulary.",
-                            description,
-                            "descriptionType",
-                        )
-                        continue
-                d_lang = d.get("lang")
-                if not isinstance(d_lang, str):
-                    continue
-                lang = self.resolve_datacite_language(language=d_lang)
-                if lang:
-                    description_obj["lang"] = {"id": lang}
-                des_list.append(description_obj)
-
-        return des_list
+    def resolve_sizes(self) -> None:
+        """Copy the ``sizes`` field from the DataCite metadata when present."""
+        val = self.metadata.get("sizes", None)
+        if val:
+            self.processed_metadata["sizes"] = val
 
     @handle_errors()
-    def resolve_datacite_descriptions(self, descriptions: list) -> str | None:
-        """Extract the abstract description from DataCite metadata."""
-        for d in descriptions:
-            _type = d.get("descriptionType")
-            description = d.get("description")
-            if _type == "Abstract" and type(description) is str and len(description) >= MIN_TITLE_LENGTH:
-                return description
-        return None
+    def resolve_formats(self) -> None:
+        """Copy the ``formats`` field from the DataCite metadata when present."""
+        val = self.metadata.get("formats", None)
+        if val:
+            self.processed_metadata["formats"] = val
 
     @handle_errors()
-    def resolve_datacite_affiliations(self, affiliations: list | None) -> list:
+    def resolve_version(self) -> None:
+        """Copy the ``version`` field from the DataCite metadata when present."""
+        val = self.metadata.get("version", None)
+        if val:
+            self.processed_metadata["version"] = val
+
+    @handle_errors()
+    def _resolve_datacite_affiliations(self, affiliations: list | None) -> list:
         """Extract and normalize affiliation entries while removing duplicates."""
         affiliations_list = []
         seen = set()
@@ -322,431 +346,34 @@ class DataciteResolver(MetadataResolver):
 
         return affiliations_list
 
-    @handle_errors()
-    def resolve_related_identifiers(self, related_identifiers: list | None) -> list:
-        """Resolve and validate related identifiers and their relation types."""
-        result = []
-        for rel in related_identifiers or []:
-            identifier = rel.get("relatedIdentifier")
-            scheme = rel.get("relatedIdentifierType")
-            rel_type = rel.get("relationType")
+    def _resolve_datacite_author(self, author: dict[str, Any], type_: str) -> dict[str, Any] | None:
+        author_type = (author.get("nameType") or "personal").lower()
+        given = author.get("givenName")
+        family = author.get("familyName")
+        name = author.get("name")
 
-            if scheme:
-                scheme = scheme.lower()
-            if not identifier or not scheme or not rel_type:
-                continue
-            if scheme not in record_related_identifiers_schemes:
-                continue
-            obj = {
-                "identifier": identifier,
-            }
-            obj["scheme"] = scheme
-            try:
-                escaped = escape_lucene(rel_type)
-                voc = vocabulary_service.search(
-                    system_identity,
-                    type="relationtypes",
-                    params={"q": f'props.datacite:"{escaped}"'},
-                )
-                resolved_types = voc.to_dict()["hits"]["hits"]
-                if len(resolved_types) != 1:
-                    current_app.logger.exception(
-                        "No unambiguous value could be resolved for vocabulary value %s.",
-                        rel_type,
-                    )
-                    continue
-                resolved_rel_type = resolved_types[0]["id"]
-            except Exception as e:  # required
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    rel_type,
-                    "relationtypes",
-                )
-                continue
-            obj["relation_type"] = {"id": resolved_rel_type}
+        if name is None:  # should never happen
+            self._add_problem(_("Missing %ss name: %s.") % (type_, author))
+            return None
 
-            res_type = rel.get("resourceTypeGeneral")
-            if res_type:
-                vocabulary_id = "resourcetypes"
-                try:
-                    escaped = escape_lucene(res_type)
-                    voc = vocabulary_service.search(
-                        system_identity,
-                        type=vocabulary_id,
-                        params={"q": f'props.datacite_general:"{escaped}"'},
-                    )
-                    resolved_types = voc.to_dict()["hits"]["hits"]
-                    if len(resolved_types) != 1:
-                        current_app.logger.exception(
-                            "No unambiguous value could be resolved for vocabulary value %s.",
-                            res_type,
-                        )
-                        continue
-                    resolved_type = resolved_types[0]["id"]
+        if author_type == "personal":
+            parsed_family, parsed_given = split_personal_name(name)
+            family = family or parsed_family
+            given = given or (parsed_given or None)
 
-                    obj["resource_type"] = {"id": resolved_type}
-                except Exception:  # not required
-                    current_app.logger.exception(
-                        "Record '%s' was not found in the '%s' vocabulary.",
-                        res_type,
-                        "resourcetypes",
-                    )
-
-            result.append(obj)
-
-        return result
-
-    @handle_errors()
-    def resolve_datacite_dates(self, dates: list) -> list:
-        """Validate and map DataCite date entries to the target format."""
-        dates_list = []
-        for d in dates:
-            date_object = {}
-            date = d.get("date")
-            if not date:
-                continue
-
-            edtf_string = EDTFDateString()
-            try:
-                edtf_string.deserialize(date)
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Not a valid date '%s'.",
-                    date,
-                )
-                continue
-            if not validate_date(date):
-                continue
-            _type = d.get("dateType")
-            try:
-                escaped = escape_lucene(_type)
-                voc = vocabulary_service.search(
-                    system_identity,
-                    type="datetypes",
-                    params={"q": f'props.datacite:"{escaped}"'},
-                )
-                resolved_datetypes = voc.to_dict()["hits"]["hits"]
-                if len(resolved_datetypes) != 1:
-                    current_app.logger.exception(
-                        "No unambiguous value could be resolved for vocabulary value %s.",
-                        type,
-                    )
-                    continue
-                resolved_datatype = resolved_datetypes[0]["id"]
-
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    type,
-                    "datetypes",
-                )
-                continue
-            date_object["date"] = date
-            date_object["type"] = {"id": resolved_datatype}
-            dates_list.append(date_object)
-        return dates_list
-
-    @handle_errors()
-    def resolve_datacite_rights(self, rights: list) -> list:
-        """Resolve and validate rights identifiers against the licenses vocabulary."""
-        rights_list = []
-        for r in rights:
-            code = r.get("rightsIdentifier")
-            if code:
-                try:
-                    vocabulary_service.read(system_identity, ("licenses", code))  # type: ignore[arg-type]
-                except Exception as e:
-                    _ = e
-                    current_app.logger.exception(
-                        "Record '%s' was not found in the '%s' vocabulary.",
-                        code,
-                        "licenses",
-                    )
-                    continue
-                rights_list.append({"id": code})
-        return rights_list
-
-    @handle_errors()
-    def resolve_datacite_strlist(self, strlist: list) -> list:
-        """Filter and return non-empty string values from a list."""
-        return [s for s in strlist if isinstance(s, str) and s != ""]
-
-    @handle_errors()
-    def resolve_datacite_language(self, language: str | None) -> str | None:
-        """Resolve and validate a language code against the vocabulary."""
-        longer_code = ""
-        if language:
-            try:
-                longer_code = langcodes.Language.get(language.lower()).to_alpha3()
-                vocabulary_service.read(system_identity, ("languages", longer_code))  # type: ignore[arg-type]
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    longer_code,
-                    "languages",
-                )
-            else:
-                return str(longer_code)
-        return None
-
-    @handle_errors()
-    def resolve_datacite_publisher(self, publisher: Any) -> str | None:
-        """Return the publisher as a string if present."""
-        if publisher:
-            return str(publisher)
-        return None
-
-    @handle_errors()
-    def resolve_datacite_subjects(self, subjects: list | None) -> list:
-        """Extract unique subject values from DataCite metadata."""
-        subjects_list = []
-        seen = set()
-        for s in subjects or []:
-            if not isinstance(s, dict):
-                continue
-
-            value = s.get("subject")
-            if not value or not isinstance(value, str):
-                continue
-            if value in seen:
-                continue
-            seen.add(value)
-            subjects_list.append({"subject": value})
-        return subjects_list
-
-    @handle_errors(error_placeholder=TITLE_PLACEHOLDER, alert_user=True)
-    def resolve_datacite_main_title(self, *, titles: list, problems: list) -> str:
-        """Extract the main title from DataCite metadata and validate its length."""
-        for title in titles:
-            if "title" in title and "titleType" not in title:  # if titleType, it is additional title
-                if len(title["title"]) < MIN_TITLE_LENGTH:
-                    problems.append(
-                        ResolverProblem(
-                            resolver=self.name,
-                            message=str(
-                                _(
-                                    "The title is too short. \
-                                A minimum of 3 characters is required to meet repository requirements."
-                                )
-                            ),
-                            level=ResolverProblemLevel.WARNING,
-                        )
-                    )
-                    return f"Incompatible title: {title} (please provide a corrected title)"
-                return str(title["title"])
-        # TODO: in the documentation it seems that it is possible to have only additional title, test this
-        problems.append(
-            ResolverProblem(
-                resolver=self.name,
-                message=str(_("Missing title.")),
-                level=ResolverProblemLevel.WARNING,
-            )
+        identifiers = self._resolve_datacite_name_identifiers(name_identifiers=author.get("nameIdentifiers", []))
+        affiliations = self._resolve_datacite_affiliations(author.get("affiliation", []))
+        return build_person_or_org(
+            name=name,
+            type_=author_type,
+            given=given,
+            family=family,
+            identifiers=identifiers if isinstance(identifiers, list) else None,
+            affiliations=affiliations,
         )
 
-        return TITLE_PLACEHOLDER  # should never happen
-
     @handle_errors()
-    def resolve_datacite_additional_titles(self, titles: list) -> list:
-        """Extract and map additional titles from DataCite metadata."""
-        additional_titles = []
-        for title in titles:
-            title_obj = {}
-            t_type = title.get("titleType")
-            if t_type is None:  # it is main title
-                continue
-            try:
-                escaped = escape_lucene(t_type)
-                voc = vocabulary_service.search(
-                    system_identity,
-                    type="titletypes",
-                    params={"q": f'props.datacite:"{escaped}"'},
-                )
-                resolved_types = voc.to_dict()["hits"]["hits"]
-                if len(resolved_types) != 1:
-                    current_app.logger.exception(
-                        "No unambiguous value could be resolved for vocabulary value %s.",
-                        t_type,
-                    )
-                    continue
-                resolved_type = resolved_types[0]["id"]
-
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    t_type,
-                    "titletypes",
-                )
-                continue
-            t_title = title.get("title")
-            if not t_title or len(t_title) < MIN_TITLE_LENGTH:
-                continue
-            t_lang = None
-
-            title_obj["title"] = t_title
-            title_obj["type"] = {"id": resolved_type}
-
-            if "lang" in title:
-                t_lang = self.resolve_datacite_language(language=title["lang"])
-            if t_lang:
-                title_obj["lang"] = {"id": t_lang}
-            additional_titles.append(title_obj)
-
-        return additional_titles
-
-    @handle_errors()
-    def split_personal_name(self, name: str) -> tuple[str, str]:
-        """Split a personal name into family and given name parts."""
-        if "," in name:
-            family, given = [part.strip() for part in name.split(",", 1)]
-        else:
-            family, given = name.strip(), ""
-        return family, given
-
-    @handle_errors(error_placeholder=CREATORS_PLACEHOLDER, alert_user=True)
-    def resolve_datacite_creators(self, *, creators: list, problems: list) -> list:
-        """Extract and map creator information from DataCite metadata."""
-        if len(creators) == 0:
-            problems.append(
-                ResolverProblem(
-                    resolver=self.name,
-                    message=str(_("Missing creators.")),
-                    level=ResolverProblemLevel.WARNING,
-                )
-            )
-            return CREATORS_PLACEHOLDER
-
-        creator_list = []
-
-        for creator in creators:
-            creator_obj = {}
-
-            creator_type = (creator.get("nameType") or "personal").lower()
-            creator_obj["type"] = creator_type
-
-            given = creator.get("givenName")
-            family = creator.get("familyName")
-            name = creator.get("name")
-            if name is None:
-                name = "Unknown"  # should never happen
-                problems.append(
-                    ResolverProblem(
-                        resolver=self.name,
-                        message=_("Missing creators name: %s.") % creator,
-                        level=ResolverProblemLevel.WARNING,
-                    )
-                )
-
-            creator_obj["name"] = name
-
-            if creator_type == "personal":
-                parsed_family, parsed_given = self.split_personal_name(name)
-
-                family = family or parsed_family
-                given = given or (parsed_given or None)
-                if family == "":
-                    # This happens if only the given name is provided, which may occur
-                    # in DataCite but is not valid in RDM.
-                    problems.append(
-                        ResolverProblem(
-                            resolver=self.name,
-                            message=_("Missing creators family name: %s.") % creator,
-                            level=ResolverProblemLevel.WARNING,
-                        )
-                    )
-                    family = "Unknown"
-            if given:
-                creator_obj["given_name"] = given
-            if family:
-                creator_obj["family_name"] = family
-
-            name_identifiers = self.resolve_datacite_name_identifiers(
-                name_identifiers=creator.get("nameIdentifiers", [])
-            )
-            if name_identifiers and isinstance(name_identifiers, list) and len(name_identifiers) > 0:
-                creator_obj["identifiers"] = name_identifiers
-            entry = {"person_or_org": creator_obj}
-            affs = self.resolve_datacite_affiliations(creator.get("affiliation", []))
-            if len(affs) > 0:
-                entry["affiliations"] = affs
-            creator_list.append(entry)
-
-        return creator_list
-
-    @handle_errors()
-    def resolve_datacite_contributors(self, contributors: list) -> list:
-        """Extract and map contributor information including roles and affiliations."""
-        contributor_list = []
-
-        for contributor in contributors:
-            person = {}
-
-            contributor_type = (contributor.get("nameType") or "personal").lower()
-            person["type"] = contributor_type
-
-            given = contributor.get("givenName")
-            family = contributor.get("familyName")
-            name = contributor.get("name") or " ".join(p for p in [given, family] if p)
-            person["name"] = name
-
-            if contributor_type == "personal":
-                parsed_family, parsed_given = self.split_personal_name(name)
-                family = family or parsed_family
-                given = given or (parsed_given or None)
-
-            if given:
-                person["given_name"] = given
-            if family:
-                person["family_name"] = family
-
-            name_identifiers = self.resolve_datacite_name_identifiers(
-                name_identifiers=contributor.get("nameIdentifiers", [])
-            )
-            if name_identifiers:
-                person["identifiers"] = name_identifiers
-
-            entry = {"person_or_org": person}
-            affs = self.resolve_datacite_affiliations(contributor.get("affiliation", []))
-            if len(affs) > 0:
-                entry["affiliations"] = affs
-            resolved_role = None
-            role = contributor.get("contributorType")
-
-            try:
-                escaped = escape_lucene(role)
-                voc = vocabulary_service.search(
-                    system_identity,
-                    type="contributorsroles",
-                    params={"q": f'props.datacite:"{escaped}"'},
-                )
-                resolved_roles = voc.to_dict()["hits"]["hits"]
-                if len(resolved_roles) != 1:
-                    current_app.logger.exception(
-                        "No unambiguous value could be resolved for vocabulary value %s.",
-                        role,
-                    )
-                    continue
-                resolved_role = resolved_roles[0]["id"]
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    role,
-                    "contributorsroles",
-                )
-            if resolved_role:
-                entry["role"] = {"id": resolved_role}
-
-            contributor_list.append(entry)
-
-        return contributor_list
-
-    @handle_errors()
-    def resolve_datacite_name_identifiers(self, *, name_identifiers: list | None) -> list:
+    def _resolve_datacite_name_identifiers(self, *, name_identifiers: list | None) -> list:
         """Resolve and normalize name identifiers including ORCID handling."""
         from oarepo_related_resources.services import resolve_orcid
 
@@ -760,8 +387,7 @@ class DataciteResolver(MetadataResolver):
             scheme = ni.get("nameIdentifierScheme")
             if scheme:
                 scheme = scheme.lower()
-
-            if not identifier or not scheme or scheme not in record_personorg_schemes:
+            if not identifier or not scheme:
                 continue
             if scheme == "orcid":
                 try:
@@ -784,71 +410,3 @@ class DataciteResolver(MetadataResolver):
             obj["scheme"] = scheme
             identifiers.append(obj)
         return identifiers
-
-    @handle_errors(PUBLICATION_DATE_PLACEHOLDER)
-    def resolve_datacite_publication_date(self, *, publication_date: Any, problems: list) -> str:
-        """Validate and normalize the publication date from DataCite metadata."""
-        publication_date = str(publication_date)
-        edtf_string = EDTFDateString()
-        try:
-            edtf_string.deserialize(publication_date)
-        except ValidationError as e:
-            problems.append(
-                ResolverProblem(
-                    resolver=self.name,
-                    message=_("Invalid publication date format: %s.") % publication_date,
-                    level=ResolverProblemLevel.WARNING,
-                    original_exception=e,
-                )
-            )
-            return PUBLICATION_DATE_PLACEHOLDER
-        if not validate_date(publication_date):
-            publication_date = PUBLICATION_DATE_PLACEHOLDER
-        return str(publication_date)
-
-    @handle_errors(RESOURCE_TYPE_PLACEHOLDER)
-    def resolve_datacite_resource_type(self, *, resource_type: dict, problems: list) -> str:
-        """Resolve and map the DataCite resource type to a vocabulary identifier."""
-        vocabulary_id = "resourcetypes"
-        _type = resource_type.get("resourceTypeGeneral") or "Other"
-        try:
-            escaped = escape_lucene(_type)
-            voc = vocabulary_service.search(
-                system_identity,
-                type=vocabulary_id,
-                params={"q": f'props.datacite_general:"{escaped}"'},
-            )
-            resolved_types = voc.to_dict()["hits"]["hits"]
-            if len(resolved_types) > 1:
-                if escaped == "Image":
-                    return "image"
-                ResolverProblem(
-                    resolver=self.name,
-                    message=_("Multiple values were resolved for the vocabulary value %s. The first value was used.")
-                    % _type,
-                    level=ResolverProblemLevel.WARNING,
-                )
-                current_app.logger.exception(
-                    "Multiple values were resolved for the vocabulary value %s. The first value was used.",
-                    _type,
-                )
-                return RESOURCE_TYPE_PLACEHOLDER
-            return str(resolved_types[0]["id"])
-        except Exception as e:
-            problems.append(
-                ResolverProblem(
-                    resolver=self.name,
-                    message=_(
-                        "The provided resource type %s could not be parsed. The default value %s has been applied."
-                    )
-                    % (_type, RESOURCE_TYPE_PLACEHOLDER),
-                    level=ResolverProblemLevel.WARNING,
-                    original_exception=e,
-                )
-            )
-            current_app.logger.exception(
-                "Record '%s' was not found in the '%s' vocabulary.",
-                _type,
-                vocabulary_id,
-            )
-            return RESOURCE_TYPE_PLACEHOLDER

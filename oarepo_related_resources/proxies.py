@@ -25,5 +25,4 @@ if TYPE_CHECKING:
 current_related_resources_import_extension = LocalProxy(
     lambda: current_app.extensions["related-resources-import-extension"]
 )  # type: ignore[assignment]
-current_resolver_registry = LocalProxy(lambda: current_related_resources_import_extension.resolver_registry)  # type: ignore[has-type]
 current_orcid_importer = LocalProxy(lambda: current_related_resources_import_extension.orcid_importer)  # type: ignore[has-type]

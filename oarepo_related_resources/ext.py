@@ -17,13 +17,10 @@ from typing import TYPE_CHECKING
 from invenio_base.utils import obj_or_import_string
 
 from . import config
-from .resolvers.registry import ResolverRegistry
 from .services.idutils import ORCIDImporter
 
 if TYPE_CHECKING:  # pragma: no cover
     from flask import Flask
-
-    from .resolvers.base import MetadataResolver
 
 
 class RelatedResourcesImportExtension:
@@ -38,19 +35,42 @@ class RelatedResourcesImportExtension:
         """Flask application initialization."""
         self.app = app
         self.init_config(app)
-
-        self.resolver_registry = ResolverRegistry()
+        self.init_services(app)
+        self.init_resources(app)
 
         app.extensions["related-resources-import-extension"] = self
 
     def init_config(self, app: Flask) -> None:
         """Initialize the configuration for the extension."""
-        app.config.setdefault("PERSISTENT_IDENTIFIER_RESOLVERS", config.PERSISTENT_IDENTIFIER_RESOLVERS)
-        app.config.setdefault("PERSISTENT_IDENTIFIER_PATTERNS", config.PERSISTENT_IDENTIFIER_PATTERNS)
         app.config.setdefault("DATACITE_URL", config.DATACITE_URL)
         app.config.setdefault("HANDLE_URL", config.HANDLE_URL)
         app.config.setdefault("CROSSREF_URL", config.CROSSREF_URL)
         app.config.setdefault("ORCID_PUBLIC_DUMP_S3_BUCKET_NAME", config.ORCID_PUBLIC_DUMP_S3_BUCKET_NAME)
+        app.config.setdefault("RELATED_RESOURCES_SERVICE_CLASS", config.RELATED_RESOURCES_SERVICE_CLASS)
+        app.config.setdefault(
+            "RELATED_RESOURCES_SERVICE_CONFIG_CLASS",
+            config.RELATED_RESOURCES_SERVICE_CONFIG_CLASS,
+        )
+        app.config.setdefault("RELATED_RESOURCES_RESOURCE_CLASS", config.RELATED_RESOURCES_RESOURCE_CLASS)
+        app.config.setdefault(
+            "RELATED_RESOURCES_RESOURCE_CONFIG_CLASS",
+            config.RELATED_RESOURCES_RESOURCE_CONFIG_CLASS,
+        )
+        app.config.setdefault("RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE", config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE)
+        app.config.setdefault("RELATED_RESOURCES_DEFAULT_TIMEOUT", config.RELATED_RESOURCES_DEFAULT_TIMEOUT)
+
+    def init_services(self, app: Flask) -> None:
+        """Initialize the services for the extension."""
+        self.service = obj_or_import_string(app.config["RELATED_RESOURCES_SERVICE_CLASS"])(  # type: ignore[reportOptionalCall]
+            obj_or_import_string(app.config["RELATED_RESOURCES_SERVICE_CONFIG_CLASS"]).build(app)  # type: ignore[reportOptionalMemberAccess]
+        )
+
+    def init_resources(self, app: Flask) -> None:
+        """Instantiate the resource for the extension."""
+        self.resource = obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CLASS"])(  # type: ignore[reportOptionalCall]
+            obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CONFIG_CLASS"]),
+            self.service,
+        )
 
     @cached_property
     def orcid_importer(self) -> ORCIDImporter:
@@ -59,8 +79,3 @@ class RelatedResourcesImportExtension:
             self.app.config["ORCID_AWS_ACCESS_KEY_ID"],
             self.app.config["ORCID_AWS_SECRET_ACCESS_KEY"],
         )
-
-    @cached_property
-    def persistent_identifiers_resolvers(self) -> list[MetadataResolver]:
-        """Return resolvers for persistent identifiers."""
-        return [obj_or_import_string(res)() for res in self.app.config["PERSISTENT_IDENTIFIER_RESOLVERS"]]  # type: ignore[call-arg]

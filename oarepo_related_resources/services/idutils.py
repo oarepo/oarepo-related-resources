@@ -411,7 +411,7 @@ def resolve_ror(  # noqa: PLR0913
             return svc.read(system_identity, ror).to_dict()
 
     client_id = current_app.config["ROR_CLIENT_ID"]
-    from oarepo_related_resources.utils import create_session_with_retries
+    from oarepo_related_resources.session import create_session_with_retries
 
     session = session or create_session_with_retries()
     headers = {"Accept": "application/json", "Client-ID": client_id}

@@ -10,26 +10,22 @@
 
 from __future__ import annotations
 
-PERSISTENT_IDENTIFIER_RESOLVERS = [
-    "oarepo_related_resources.resolvers.DataciteResolver",
-    "oarepo_related_resources.resolvers.CrossrefResolver",
-    "oarepo_related_resources.resolvers.HandleResolver",
-]
-
-PERSISTENT_IDENTIFIER_PATTERNS = {
-    r"https://doi.org/(.*)": "doi",
-    r"https?://hdl.handle.net/(.+)": "handle",
-}
-
-
-EDIT_GRANT_EXPIRATION_DAYS = 7
-RELATED_RESOURCES_CURATORS_GROUP_ID = "related_resources_curators"
-
-# Revalidate the persistent URL if it was last checked more than this number of days ago
-LAST_CHECKED_THRESHOLD_DAYS = 2
+import importlib.metadata
 
 DATACITE_URL = "https://api.datacite.org/dois"
 HANDLE_URL = "https://hdl.handle.net"
 CROSSREF_URL = "https://api.crossref.org/works/doi"
 
 ORCID_PUBLIC_DUMP_S3_BUCKET_NAME = "v3.0-summaries"
+
+RELATED_RESOURCES_SERVICE_CLASS = "oarepo_related_resources.services.RelatedResourcesService"
+RELATED_RESOURCES_SERVICE_CONFIG_CLASS = "oarepo_related_resources.services.RelatedResourcesServiceConfig"
+RELATED_RESOURCES_RESOURCE_CLASS = "oarepo_related_resources.resources.RelatedResourcesResource"
+RELATED_RESOURCES_RESOURCE_CONFIG_CLASS = "oarepo_related_resources.resources.RelatedResourcesResourceConfig"
+
+try:
+    importlib.metadata.version("ccmm-invenio")
+    RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "c_ddb1"
+except importlib.metadata.PackageNotFoundError:
+    RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "dataset"
+RELATED_RESOURCES_DEFAULT_TIMEOUT = 10
