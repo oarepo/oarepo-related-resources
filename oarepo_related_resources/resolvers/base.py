@@ -112,7 +112,7 @@ class MetadataResolver(ABC):
 
     def __init__(self):
         """Construct."""
-        self.metadata = None
+        self.metadata: Any = None
         self.session = create_session_with_retries(
             total_retries=4,
         )
