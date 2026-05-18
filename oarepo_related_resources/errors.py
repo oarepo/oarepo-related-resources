@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2026 CESNET z.s.p.o.
 #
-# This file is a part of nma (see https://github.com/EOSC-CZ/nma).
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
 #
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from flask_babel import gettext
+from flask_babel import LazyString, gettext
 
 
 class PIDDoesNotExistError(Exception):
@@ -55,5 +55,22 @@ class PIDProcessingError(Exception):
             gettext(
                 "Error while processing identifier '%(identifier)s'.",
                 identifier=identifier,
+            )
+        )
+
+
+class UpstreamFetchError(Exception):
+    """Raised when an error occurs in response from external resource call."""
+
+    def __init__(self, message: str | LazyString, url: str, error_code: int, content: str):
+        """Construct."""
+        self.error_code = error_code
+        super().__init__(
+            gettext(
+                "%(message)s; url - '%(url)s', error code - '%(error_code)s', content - '%(content)s'.",
+                message=message,
+                url=url,
+                error_code=error_code,
+                content=content,
             )
         )

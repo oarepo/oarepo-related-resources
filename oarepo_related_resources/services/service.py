@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2026 CESNET z.s.p.o.
 #
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
+#
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
@@ -80,14 +82,14 @@ class RelatedResourcesService(Service):
                 "Unexpected error while finding resolver for id: %s",
                 identifier_url,
             )
-            raise PIDProcessingError(str(e)) from e
+            raise PIDProcessingError(identifier_url) from e
         normalized_identifier_url = resolver.normalize_identifier_url(identifier_url)
 
         try:
             metadata, problems = resolver.resolve(normalized_identifier_url)
-        except Exception as e:
+        except Exception:
             current_app.logger.exception("Exception calling resolver %s %s", resolver, normalized_identifier_url)
-            raise PIDProcessingError(str(e)) from e
+            raise
 
         metadata, resolve_schema_errors = self.resolver_load_schema.load(metadata, raise_errors=False)
         for resolver_schema_error in resolve_schema_errors:

@@ -1,6 +1,8 @@
 #
 # Copyright (c) 2026 CESNET z.s.p.o.
 #
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
+#
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
@@ -9,13 +11,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from flask_resources import HTTPJSONException, ResourceConfig, create_error_handler
 from invenio_i18n import lazy_gettext as _
 from invenio_records_resources.services.errors import PermissionDeniedError
 
-from oarepo_related_resources.errors import PIDDoesNotExistError, PIDProcessingError, UnsupportedPIDError
+from oarepo_related_resources.errors import (
+    PIDDoesNotExistError,
+    PIDProcessingError,
+    UnsupportedPIDError,
+    UpstreamFetchError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -42,6 +49,12 @@ class RelatedResourcesResourceConfig(ResourceConfig):
         UnsupportedPIDError: create_error_handler(
             lambda e: HTTPJSONException(
                 code=404,
+                description=str(e),
+            )
+        ),
+        UpstreamFetchError: create_error_handler(
+            lambda e: HTTPJSONException(
+                code=cast("UpstreamFetchError", e).error_code,
                 description=str(e),
             )
         ),

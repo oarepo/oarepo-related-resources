@@ -1,9 +1,9 @@
 #
-# Copyright (c) 2025 CESNET z.s.p.o.
+# Copyright (c) 2026 CESNET z.s.p.o.
 #
-# This file is a part of nma (see https://github.com/EOSC-CZ/nma).
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
 #
-# nma is free software; you can redistribute it and/or modify it
+# oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
 """Related resources base resolver class."""
@@ -23,6 +23,7 @@ from idutils.validators import is_doi
 from invenio_i18n import lazy_gettext as _
 
 from oarepo_related_resources.config import RELATED_RESOURCES_DEFAULT_TIMEOUT
+from oarepo_related_resources.errors import UpstreamFetchError
 from oarepo_related_resources.session import create_session_with_retries
 
 if TYPE_CHECKING:
@@ -84,7 +85,7 @@ class MetadataResolver(ABC):
     -> 10.5281/zenodo.19032692"""  # TODO: i think the naming is confusing but i'm not sure how to call this correctly
 
     fields_to_resolve: tuple[str, ...]
-    """Fields to resolve from the resolver's API response."""
+    """Fields to resolve from the resolver's API response, ie. fields for which a parser is defined."""
 
     lowercase: bool = False
     """If True, normalize_url() also lowercases the identifier (case-insensitive PIDs)."""
@@ -144,7 +145,7 @@ class MetadataResolver(ABC):
         """Return True if the identifier API response ``status_code`` indicates the PID is live."""
         return status_code == HTTPStatus.OK
 
-    def normalize_identifier_url(self, identifier: str) -> str:
+    def normalize_identifier_url(self, identifier_url: str) -> str:
         """Normalize an identifier url.
 
         Rewrites ``http://`` to ``https://``, strips surrounding whitespace,
@@ -152,16 +153,16 @@ class MetadataResolver(ABC):
         ``self.lowercase`` is True. Ensures identifiers are stored
         consistently to prevent duplicates.
         """
-        if identifier.startswith("http://"):
-            identifier = identifier.replace("http://", "https://", 1)
-        normalized = unicodedata.normalize("NFC", identifier.strip())
+        if identifier_url.startswith("http://"):
+            identifier_url = identifier_url.replace("http://", "https://", 1)
+        normalized = unicodedata.normalize("NFC", identifier_url.strip())
         if self.lowercase:
             normalized = normalized.lower()
         return normalized
 
-    def can_resolve_identifier_url_format(self, url: str) -> bool:
+    def can_resolve_identifier_url_format(self, identifier_url: str) -> bool:
         """Check if the url is valid for this resolver."""
-        return self.resolves_identifier_url_format(self.normalize_identifier_url(url))
+        return self.resolves_identifier_url_format(self.normalize_identifier_url(identifier_url))
 
     def identifier_exists_at_fetch_url(self, identifier: str) -> bool:
         """Check if identifier exists on the resolver's API.
@@ -177,23 +178,22 @@ class MetadataResolver(ABC):
         )
         return self._fetch_response_alive(response.status_code)
 
-    def fetch(self, url: str, *, allow_redirects: bool = True) -> Response | None:
-        """GET response from identifier API and map non-200 responses to ResolverProblem(s)."""
+    def fetch(self, url: str, *, allow_redirects: bool = True) -> Response:
+        """GET response from identifier API."""
         response = self.session.get(url=url, timeout=self.resolve_timeout, allow_redirects=allow_redirects)
         if response.status_code == HTTPStatus.OK:
             return response  # type: ignore[no-any-return]
         if response.status_code == HTTPStatus.NOT_FOUND:
-            self._add_problem(self.not_found_message, level=ResolverProblemLevel.ERROR)
-            return None
-
-        current_app.logger.error(
-            "Unexpected error while resolving %s. Response code: %s, content: %s",
-            url,
-            response.status_code,
-            response.content,
-        )
-        self._add_problem(self.unexpected_error_message, level=ResolverProblemLevel.ERROR)
-        return None
+            error_message = self.not_found_message
+        else:
+            current_app.logger.error(
+                "Unexpected error while resolving %s. Response code: %s, content: %s",
+                url,
+                response.status_code,
+                response.content,
+            )
+            error_message = self.unexpected_error_message
+        raise UpstreamFetchError(error_message, url, response.status_code, response.text)
 
     @abstractmethod
     def get_metadata(self, response: Response) -> Any:
@@ -207,9 +207,6 @@ class MetadataResolver(ABC):
         If the metadata is resolved, returns (metadata_dict, list[ResolverProblem]).
         """
         response = self.fetch(self._fetch_url(identifier))
-        if response is None:
-            return {}, self.problems
-
         self.metadata = self.get_metadata(response)
         return self.resolve_metadata()
 
