@@ -1,6 +1,6 @@
 [project]
 name = "oarepo-related-resources"
-dynamic = ["version"]
+version = "1.0.0"
 description = "Related resource metadata import module extracted from NMA"
 readme = "README.md"
 license = "MIT"
@@ -40,8 +40,6 @@ related_resources_import_extension = "oarepo_related_resources.ext:RelatedResour
 [project.entry-points."invenio_base.api_blueprints"]
 related_resources = "oarepo_related_resources.views:create_bp"
 
-[tool.hatch.version]
-path = "oarepo_related_resources/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = [

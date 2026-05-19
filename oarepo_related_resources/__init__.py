@@ -11,7 +11,12 @@
 
 from __future__ import annotations
 
-__version__ = "1.0.0dev1"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("oarepo-related-resources")
+except PackageNotFoundError:
+    __version__ = "0.0.0dev0+unknown"
 """Version of the library."""
 
 __all__ = ("__version__",)
