@@ -6,17 +6,16 @@
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
-
-"""Related resources import module."""
+"""Blueprint factory for the related-resources HTTP API."""
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version
+from typing import TYPE_CHECKING
 
-try:
-    __version__ = version("oarepo-related-resources")
-except PackageNotFoundError:
-    __version__ = "0.0.0dev0+unknown"
-"""Version of the library."""
+if TYPE_CHECKING:
+    from flask import Blueprint, Flask
 
-__all__ = ("__version__",)
+
+def create_bp(app: Flask) -> Blueprint:
+    """Create requests blueprint."""
+    return app.extensions["related-resources-import-extension"].resource.as_blueprint()

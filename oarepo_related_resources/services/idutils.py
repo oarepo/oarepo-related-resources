@@ -1,5 +1,7 @@
 #
-# Copyright (c) 2025 CESNET z.s.p.o.
+# Copyright (c) 2026 CESNET z.s.p.o.
+#
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
 #
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -411,7 +413,7 @@ def resolve_ror(  # noqa: PLR0913
             return svc.read(system_identity, ror).to_dict()
 
     client_id = current_app.config["ROR_CLIENT_ID"]
-    from oarepo_related_resources.utils import create_session_with_retries
+    from oarepo_related_resources.session import create_session_with_retries
 
     session = session or create_session_with_retries()
     headers = {"Accept": "application/json", "Client-ID": client_id}

@@ -1,14 +1,14 @@
 [project]
 name = "oarepo-related-resources"
-dynamic = ["version"]
+version = "1.0.0"
 description = "Related resource metadata import module extracted from NMA"
 readme = "README.md"
 license = "MIT"
 authors = []
 dependencies = [
     "oarepo[rdm,s3]>=14.0.0,<15.0.0",
-    "oarepo-runtime>=2.0.0dev0,<3.0.0",
-    "oarepo-vocabularies>=3.0.0dev6,<4.0.0",
+    "oarepo-runtime>=4.0.0,<5.0.0",
+    "oarepo-vocabularies>=5.0.0,<6.0.0",
     "beautifulsoup4",
     "boto3",
     "langcodes",
@@ -17,7 +17,7 @@ dependencies = [
     "types-python-dateutil",
     "rapidfuzz",
 ]
-requires-python = ">=3.13,<3.15"
+requires-python = ">=3.14,<3.15"
 
 [project.optional-dependencies]
 dev = [
@@ -37,9 +37,9 @@ related_resources_import_extension = "oarepo_related_resources.ext:RelatedResour
 [project.entry-points."invenio_base.apps"]
 related_resources_import_extension = "oarepo_related_resources.ext:RelatedResourcesImportExtension"
 
+[project.entry-points."invenio_base.api_blueprints"]
+related_resources = "oarepo_related_resources.views:create_bp"
 
-[tool.hatch.version]
-path = "oarepo_related_resources/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = [

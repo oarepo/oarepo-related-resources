@@ -1,5 +1,7 @@
 #
-# Copyright (c) 2025 CESNET z.s.p.o.
+# Copyright (c) 2026 CESNET z.s.p.o.
+#
+# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
 #
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -10,277 +12,151 @@ from __future__ import annotations
 
 import datetime
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, override
 
 import dateutil  # type: ignore[import-untyped]
-import langcodes
 from dateutil.parser import ParserError  # type: ignore[import-untyped]
-from flask import current_app
 from idutils.normalizers import normalize_handle
 from idutils.validators import is_handle
-from invenio_access.permissions import system_identity
 from invenio_i18n import lazy_gettext as _
-from invenio_vocabularies.proxies import current_service as vocabulary_service
 from lxml import html
-from marshmallow import ValidationError
-from marshmallow_utils.fields import EDTFDateString
 
-from ..resolvers import MetadataResolver
+from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
-    CREATORS_PLACEHOLDER,
-    PUBLICATION_DATE_PLACEHOLDER,
-    RESOURCE_TYPE_PLACEHOLDER,
-    TITLE_PLACEHOLDER,
+    MetadataResolver,
     ResolverProblem,
-    ResolverProblemLevel,
-    get_invalid_publication_date_message,
-    get_validation_failed_on_date_format_message,
 )
-from .utils import handle_errors
+from .utils import (
+    build_person_or_org,
+    handle_errors,
+    resolve_language,
+    split_personal_name,
+    validate_edtf,
+)
 
 if TYPE_CHECKING:
-    from lxml.etree import _Element
-MIN_TITLE_LENGTH = 3
+    from requests import Response
+
 MIN_YEAR = 1900
-HTTP_OK = 200
 HTTP_BAD_REQUEST = 400
-HTTP_FORBIDDEN = 403
-HTTP_NOT_FOUND = 404
-HTTP_GONE = 410
-
-
-def parse_date(date: str) -> tuple[str, list[str]]:
-    """Parse and normalize a date string."""
-    error_messages = []
-
-    # 0000 is a special case happening a lot in LINDAT data that passes EDTF schema validation
-    if re.match(r"^\d{4}$", date) and not (
-        int(date) > MIN_YEAR and int(date) <= datetime.datetime.now(datetime.UTC).year
-    ):
-        return PUBLICATION_DATE_PLACEHOLDER, [get_invalid_publication_date_message(date)]
-    try:
-        parsed_date = EDTFDateString().deserialize(date)
-    except ValidationError:
-        try:
-            parsed_date = dateutil.parser.parse(date, fuzzy=True)
-            parsed_date = datetime.datetime.strftime(parsed_date, "%Y-%m-%d")
-            error_messages.append(get_validation_failed_on_date_format_message(date))
-        except ParserError:
-            error_messages.append(get_invalid_publication_date_message(date))
-            parsed_date = PUBLICATION_DATE_PLACEHOLDER
-    return str(parsed_date), error_messages
 
 
 class HandleResolver(MetadataResolver):
     """Resolver for Handle persistent identifiers."""
 
-    name = "Handle"
+    provider = "Handle"
+    scheme_url = "https://hdl.handle.net"
+    exists_allow_redirects = False
+    resolves_identifier = staticmethod(lambda url: bool(is_handle(url)))
+    normalize_identifier = staticmethod(normalize_handle)
 
-    def resolve_metadata(self, metadata_tree: _Element) -> tuple[dict, list[ResolverProblem]]:
-        """Extract metadata fields from the parsed HTML tree."""
-        problem_list: list[ResolverProblem] = []
-        metadata = {}
-        metadata["title"] = self.resolve_main_title(tree=metadata_tree, problems=problem_list)
-        metadata["creators"] = self.resolve_creators(tree=metadata_tree, problems=problem_list)
-        metadata["publication_date"] = self.resolve_publication_date(tree=metadata_tree, problems=problem_list)
-        # there are dataset related tags, dataset_creator, dataset_license, dataset_keyword ..
-        # but they are used also on things that aren't datasets
-        metadata["resource_type"] = {"id": RESOURCE_TYPE_PLACEHOLDER}
+    not_found_message = _("The identifier looks like a Handle, but it was not found in the Handle registry.")
+    unexpected_error_message = _("Unexpected error while resolving the Handle. Please fill the metadata manually.")
 
-        additional_desc = self.resolve_additional_description(tree=metadata_tree, problems=problem_list)
-        if len(additional_desc) > 0:
-            metadata["additional_descriptions"] = additional_desc
+    @override
+    def _fetch_response_alive(self, status_code: int) -> bool:
+        """Handle considers any 2xx/3xx response (incl. redirects) as live."""
+        return 200 <= status_code < HTTP_BAD_REQUEST  # noqa PLR2004
 
-        return metadata, problem_list
-
-    def normalize(self, identifier: str) -> str:
-        """Normalize the identifier by lowercasing it for case-insensitive Handle comparison."""
-        return super().normalize(identifier).lower()
-
-    def generate_id(self, identifier: str) -> str:
-        """Generate an internal identifier from a Handle URL."""
-        pattern = r"https?://hdl.handle.net/(.+)"
-        m = re.match(pattern, identifier)
-        if m:
-            return f"handle/{m.group(1)}"
-        raise ValueError(f"Could not generate pid from url: {identifier}")
-
-    def exists(self, identifier: str) -> bool:
-        """Check if the Handle exists by performing an HTTP request to the Handle registry."""
-        handle_url = current_app.config.get("HANDLE_URL")
-        handle = normalize_handle(identifier)
-        url = f"{handle_url}/{handle}"
-        response = self.session.get(url=url, timeout=self.resolve_timeout, allow_redirects=False)
-        return bool(HTTP_OK <= response.status_code < HTTP_BAD_REQUEST)
-
-    def can_resolve(self, identifier: str) -> bool:
-        """Determine whether the given URL is a valid and supported Handle identifier."""
-        persistent_url = self.normalize(identifier)
-        return bool(is_handle(persistent_url)) and "https://hdl.handle.net" in persistent_url
-
-    def resolve(self, identifier: str) -> tuple[dict | None, list[ResolverProblem]]:
-        """Resolve metadata for a Handle URL by fetching and parsing its HTML representation."""
-        handle = normalize_handle(identifier)
-        handle_url = current_app.config.get("HANDLE_URL")
-
-        response = self.session.get(  # redirect is hardcoded at 3
-            url=f"{handle_url}/{handle}", timeout=self.resolve_timeout
-        )
-
-        if response.status_code != HTTP_OK:
-            if response.status_code == HTTP_NOT_FOUND:
-                return {}, [
-                    ResolverProblem(
-                        resolver=self.name,
-                        message=str(
-                            _(
-                                "The identifier looks like a Handle, but \
-                        it was not found in the Handle registry."
-                            )
-                        ),
-                        level=ResolverProblemLevel.ERROR,
-                    )
-                ]
-            current_app.logger.error(
-                "Unexpected error while resolving the Handle. Response code: %s, content: %s",
-                response.status_code,
-                response.content,
-            )
-            return {}, [
-                ResolverProblem(
-                    resolver=self.name,
-                    message=str(
-                        _(
-                            "Unexpected error while resolving the Handle. Please fill the metadata manually.",
-                        )
-                    ),
-                    level=ResolverProblemLevel.ERROR,
-                )
-            ]
-
+    @override
+    def get_metadata(self, response: Response) -> Any:
         tree = html.fromstring(response.content)
-        tree = tree.xpath("/html/head")[0]
+        return tree.xpath("/html/head")[0]
 
-        return self.resolve_metadata(metadata_tree=tree)
+    @override
+    def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
+        self.resolve_title()
+        self.resolve_creators()
+        self.resolve_publication_date()
+        self.resolve_resource_type()
+        self.resolve_additional_descriptions()
+        return self.processed_metadata, self.problems
 
-    @handle_errors(error_placeholder=TITLE_PLACEHOLDER, alert_user=True)
-    def resolve_main_title(self, *, tree: _Element, problems: list) -> str:
-        """Resolve title from handle."""
-        titles = tree.xpath('//meta[@name="citation_title"]/@content') or tree.xpath('//meta[@name="title"]/@content')
+    @handle_errors(alert_user=True)
+    def resolve_title(self) -> None:
+        """Extract the main title from Handle HTML metadata."""
+        titles = self.metadata.xpath('//meta[@name="citation_title"]/@content') or self.metadata.xpath(
+            '//meta[@name="title"]/@content'
+        )
         if titles:
-            return str(titles[0])
-        problems.append(
-            ResolverProblem(
-                resolver=self.name,
-                message=str(_("Missing title.")),
-                level=ResolverProblemLevel.WARNING,
-            )
-        )
-        return TITLE_PLACEHOLDER
+            self.processed_metadata["title"] = titles[0]
 
-    @handle_errors(error_placeholder=CREATORS_PLACEHOLDER, alert_user=True)
-    def resolve_creators(self, *, tree: _Element, problems: list) -> list:
-        """Resolve creators from handle."""
-        creators = tree.xpath('//meta[@name="citation_author"]/@content')
-        if not creators:
-            problems.append(
-                ResolverProblem(
-                    resolver=self.name,
-                    message=str(_("Missing creators.")),
-                    level=ResolverProblemLevel.WARNING,
-                )
-            )
-            return CREATORS_PLACEHOLDER
+    @handle_errors(alert_user=True)
+    def resolve_creators(self) -> None:
+        """Extract and map creator information from Handle HTML metadata."""
+        creators = self.metadata.xpath('//meta[@name="citation_author"]/@content')
         creator_list = []
-
         for creator in creators:
-            creator_obj = {}
+            # best guess from looking at LINDAT data
+            if "," in creator:
+                family, given = split_personal_name(creator)
+                creator_list.append(build_person_or_org(name=creator, family=family, given=given))
+            else:
+                creator_list.append(build_person_or_org(name=creator, type_="organizational"))
 
-            creator_type = "personal" if "," in creator else "organizational"  # best guess from looking at LINDAT data
-            creator_obj["name"] = creator
-            creator_obj["type"] = creator_type
+        if creator_list:
+            self.processed_metadata["creators"] = creator_list
 
-            if creator_type == "personal":
-                splt = [part.strip() for part in creator.split(",", 1)]
-                creator_obj["given_name"] = splt[1]
-                creator_obj["family_name"] = splt[0]
-
-            creator_list.append({"person_or_org": creator_obj})
-
-        return creator_list
-
-    @handle_errors(PUBLICATION_DATE_PLACEHOLDER, alert_user=True)
-    def resolve_publication_date(self, *, tree: _Element, problems: list) -> str:
-        """Resolve publication date from handle."""
+    @handle_errors(alert_user=True)
+    def resolve_publication_date(self) -> None:
+        """Extract and validate the publication date from Handle HTML metadata."""
         dates = (
-            tree.xpath('//meta[@name="citation_publication_date"]/@content')
-            or tree.xpath('//meta[@name="publication_date"]/@content')
-            or tree.xpath('//meta[@name="citation_date"]/@content')
+            self.metadata.xpath('//meta[@name="citation_publication_date"]/@content')
+            or self.metadata.xpath('//meta[@name="publication_date"]/@content')
+            or self.metadata.xpath('//meta[@name="citation_date"]/@content')
         )
-
         if not dates:
-            problems.append(
-                ResolverProblem(
-                    resolver=self.name,
-                    level=ResolverProblemLevel.WARNING,
-                    message=str(_("Publication date missing.")),
-                )
-            )
-            return PUBLICATION_DATE_PLACEHOLDER
+            return
 
-        date = dates[0]
-        parsed_date, error_messages = parse_date(date)
-        problems.extend(
-            ResolverProblem(
-                resolver=self.name,
-                level=ResolverProblemLevel.WARNING,
-                message=em,
-            )
-            for em in error_messages
-        )
-        return parsed_date
+        parsed = self._parse_loose_date(dates[0])
+        if parsed:
+            self.processed_metadata["publication_date"] = parsed
 
     @handle_errors()
-    def resolve_additional_description(self, *, tree: _Element, problems: list) -> list:
-        """Resolve additional description from handle."""
-        _ = problems
-        descriptions = tree.xpath('//meta[@name="DCTERMS.abstract"]')
+    def resolve_resource_type(self) -> None:
+        """Set the resource type placeholder for Handle records."""
+        # there are dataset related tags, dataset_creator, dataset_license, dataset_keyword ..
+        # but they are used also on things that aren't datasets
+        self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+
+    @handle_errors()
+    def resolve_additional_descriptions(self) -> None:
+        """Extract and map additional descriptions from Handle HTML metadata."""
+        descriptions = self.metadata.xpath('//meta[@name="DCTERMS.abstract"]')
         des_list = []
         for d in descriptions:
             description = d.get("content")
 
             if description:
                 description_obj = {}
-                if len(description) < MIN_TITLE_LENGTH:
-                    continue
                 d_lang = d.get("xml:lang")
-                lang = self.resolve_language(language=d_lang)
+                lang = resolve_language(d_lang)
                 if lang:
                     description_obj["lang"] = {"id": lang}
                 description_obj["type"] = {"id": "abstract"}
                 description_obj["description"] = description
                 des_list.append(description_obj)
 
-        return des_list
+        if des_list:
+            self.processed_metadata["additional_descriptions"] = des_list
 
-    # TODO: copy paste from datacite
-    @handle_errors()
-    def resolve_language(self, language: str | None) -> str | None:
-        """Resolve language vocabulary."""
-        longer_code = ""
-        if language:
-            try:
-                longer_code = langcodes.Language.get(language.lower()).to_alpha3()
-                vocabulary_service.read(system_identity, ("languages", longer_code))  # type: ignore[arg-type]
-
-            except Exception as e:
-                _ = e
-                current_app.logger.exception(
-                    "Record '%s' was not found in the '%s' vocabulary.",
-                    longer_code,
-                    "languages",
-                )
-            else:
-                return str(longer_code)
-
-        return None
+    def _parse_loose_date(self, date: str) -> str | None:
+        """Parse a free-form date string, falling back to dateutil with a warning."""
+        # 0000 is a special case happening a lot in LINDAT data that passes EDTF schema validation
+        if re.match(r"^\d{4}$", date) and not (MIN_YEAR < int(date) <= datetime.datetime.now(datetime.UTC).year):
+            self._add_problem(_("Invalid publication date format: %(date)s.", date=date))
+            return None
+        if validate_edtf(date) is None:
+            return date
+        try:
+            parsed = dateutil.parser.parse(date, fuzzy=True)
+        except ParserError:
+            self._add_problem(_("Invalid publication date format: %(date)s.", date=date))
+            return None
+        self._add_problem(
+            _(
+                "Publication date format did not pass validation; format: %(date)s.",
+                date=date,
+            ),
+        )
+        return datetime.datetime.strftime(parsed, "%Y-%m-%d")

@@ -6,17 +6,14 @@
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
-
-"""Related resources import module."""
+"""Related resources services."""
 
 from __future__ import annotations
 
-from importlib.metadata import PackageNotFoundError, version
+from oarepo_related_resources.resources.config import RelatedResourcesResourceConfig
+from oarepo_related_resources.resources.resource import RelatedResourcesResource
 
-try:
-    __version__ = version("oarepo-related-resources")
-except PackageNotFoundError:
-    __version__ = "0.0.0dev0+unknown"
-"""Version of the library."""
-
-__all__ = ("__version__",)
+__all__ = [
+    "RelatedResourcesResource",
+    "RelatedResourcesResourceConfig",
+]
