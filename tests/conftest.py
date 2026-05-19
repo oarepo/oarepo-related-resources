@@ -77,7 +77,6 @@ def zenodo_imported_metadata():
                 }
             }
         ],
-        "identifiers": [{"identifier": "oai:zenodo.org:19032692", "scheme": "oai"}],
         "publisher": "Radical Statistics",
         "resource_type": {"id": "dataset"},
         "publication_date": "2025",
@@ -184,6 +183,5 @@ def create_app(instance_path, entry_points):
 
 @pytest.fixture(scope="module")
 def app_config(app_config):
-    app_config["DATACITE_URL"] = "https://api.datacite.org/dois"
     app_config["APP_RDM_ADMIN_EMAIL_RECIPIENT"] = "bugsmasher@cesnet.cz"
     return app_config

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, override
 
 from flask import current_app
 from invenio_i18n import lazy_gettext as _
+from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes
 
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
@@ -243,6 +244,7 @@ class DataciteResolver(DoiResolverBase):
     def resolve_creators(self) -> None:
         """Extract and map creator information from DataCite metadata."""
         creators = [self._resolve_datacite_author(creator, "creator") for creator in self.metadata.get("creators", [])]
+        creators = [c for c in creators if c is not None]
         if creators:
             self.processed_metadata["creators"] = creators
 
@@ -296,8 +298,10 @@ class DataciteResolver(DoiResolverBase):
                 "scheme": id_with_scheme["identifierType"].lower(),
             }
             for id_with_scheme in self.metadata.get("identifiers", [])
+            if id_with_scheme["identifierType"].lower() in record_identifiers_schemes
         ]
-        self.processed_metadata["identifiers"] = identifiers
+        if identifiers:
+            self.processed_metadata["identifiers"] = identifiers
 
     @handle_errors()
     def resolve_sizes(self) -> None:

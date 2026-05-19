@@ -43,11 +43,6 @@ class RelatedResourcesService(Service):
         """Returns the data schema instance."""
         return ServiceSchemaWrapper(self, schema=self.config.schema)
 
-    @property
-    def resolver_load_schema(self) -> ServiceSchemaWrapper:
-        """Returns the data schema instance."""
-        return ServiceSchemaWrapper(self, schema=self.config.resolver_load_schema)
-
     def _find_resolver(self, identifier: str) -> MetadataResolver:
         url_format_resolvable = False
         for resolver in self.resolvers:
@@ -103,6 +98,10 @@ class RelatedResourcesService(Service):
         return cast(
             "RelatedResourceItem",
             self.config.result_item_cls(
-                metadata=data, import_errors=import_errors, validation_errors=validation_errors
+                identity=identity,
+                service=self,
+                metadata=data,
+                import_errors=import_errors,
+                validation_errors=validation_errors,
             ),
         )

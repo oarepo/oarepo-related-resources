@@ -34,7 +34,7 @@ def test_datacite_import(app, logged_client, users, mock_http, zenodo_imported_m
 
 def test_datacite_import_errors(app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi):
     response = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
-    assert len(response.json["validation_errors"]) == 1
+    assert len(response.json["validation_errors"]) == 0
     assert len(response.json["import_errors"]) == 1
 
 

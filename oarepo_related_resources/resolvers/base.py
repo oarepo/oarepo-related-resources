@@ -21,7 +21,6 @@ from idutils.normalizers import normalize_doi
 from idutils.validators import is_doi
 from invenio_i18n import lazy_gettext as _
 
-from oarepo_related_resources.config import RELATED_RESOURCES_DEFAULT_TIMEOUT
 from oarepo_related_resources.errors import UpstreamFetchError
 from oarepo_related_resources.session import create_session_with_retries
 
@@ -104,7 +103,7 @@ class MetadataResolver(ABC):
     @property
     def resolve_timeout(self) -> int:
         """Default timeout (seconds) applied on resolver requests."""
-        return RELATED_RESOURCES_DEFAULT_TIMEOUT
+        return current_app.config["RELATED_RESOURCES_DEFAULT_TIMEOUT"]  # type: ignore[no-any-return]
 
     def __init__(self):
         """Construct."""
@@ -188,8 +187,8 @@ class MetadataResolver(ABC):
     def resolve(self, identifier: str) -> tuple[dict[str, Any], list[ResolverProblem]]:
         """Resolve metadata by identifier.
 
-        If the metadata can not be resolved, returns (None, list[ResolverProblem]).
         If the metadata is resolved, returns (metadata_dict, list[ResolverProblem]).
+        If the metadata can not be resolved, raise UpstreamFetchError.
         """
         response = self.fetch(identifier)
         self.metadata = self.get_metadata(response)

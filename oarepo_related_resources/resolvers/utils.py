@@ -151,14 +151,14 @@ def lookup_vocabulary_by_prop(
     """
     hits = search_vocabulary_by_prop(vocabulary_id, value, prop=prop)
     if not hits:
-        current_app.logger.exception(
+        current_app.logger.error(
             "Record '%s' was not found in the '%s' vocabulary.",
             value,
             vocabulary_id,
         )
         return None
     if len(hits) > 1:
-        current_app.logger.exception(
+        current_app.logger.error(
             "No unambiguous value could be resolved for vocabulary value %s.",
             value,
         )
@@ -186,7 +186,7 @@ def lookup_vocabulary_by_prop_handle_multiple(
     """
     hits = search_vocabulary_by_prop(vocabulary_id, value, prop=prop)
     if not hits:
-        current_app.logger.exception(
+        current_app.logger.error(
             "Record '%s' was not found in the '%s' vocabulary.",
             value,
             vocabulary_id,

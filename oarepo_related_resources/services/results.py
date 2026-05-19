@@ -6,7 +6,7 @@
 # oarepo-related-resources is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 #
-"""Permission policy for the related-resources import service."""
+"""Result item for related resources."""
 
 from __future__ import annotations
 
@@ -17,17 +17,27 @@ from invenio_records_resources.services.base.results import ServiceItemResult
 if TYPE_CHECKING:
     from typing import Any
 
+    from flask_principal import Identity
+
     from oarepo_related_resources.resolvers.base import ResolverProblem
+    from oarepo_related_resources.services import RelatedResourcesService
 
 
 class RelatedResourceItem(ServiceItemResult):  # add service, identity
     """Service result for a single related resource."""
 
     def __init__(
-        self, metadata: dict[str, Any], import_errors: list[ResolverProblem], validation_errors: list[dict[str, Any]]
+        self,
+        identity: Identity,
+        service: RelatedResourcesService,
+        metadata: dict[str, Any],
+        import_errors: list[ResolverProblem],
+        validation_errors: list[dict[str, Any]],
     ):
         """Construct."""
         super().__init__()
+        self._identity = identity
+        self._service = service
         self._metadata = metadata
         self._import_errors = import_errors
         self._validation_errors = validation_errors
