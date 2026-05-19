@@ -24,6 +24,7 @@ from lxml import html
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     MetadataResolver,
+    ResolverProblem,
 )
 from .utils import (
     build_person_or_org,
@@ -44,23 +45,15 @@ class HandleResolver(MetadataResolver):
     """Resolver for Handle persistent identifiers."""
 
     provider = "Handle"
-
-    lowercase = True
+    scheme_url = "https://hdl.handle.net"
     exists_allow_redirects = False
-    resolves_identifier_url_format = staticmethod(lambda url: bool(is_handle(url)) and "https://hdl.handle.net" in url)
+    resolves_identifier = staticmethod(lambda url: bool(is_handle(url)))
     normalize_identifier = staticmethod(normalize_handle)
 
     not_found_message = _("The identifier looks like a Handle, but it was not found in the Handle registry.")
     unexpected_error_message = _("Unexpected error while resolving the Handle. Please fill the metadata manually.")
 
-    fields_to_resolve = (
-        "title",
-        "creators",
-        "publication_date",
-        "resource_type",
-        "additional_descriptions",
-    )
-
+    @override
     def _fetch_response_alive(self, status_code: int) -> bool:
         """Handle considers any 2xx/3xx response (incl. redirects) as live."""
         return 200 <= status_code < HTTP_BAD_REQUEST  # noqa PLR2004
@@ -69,6 +62,15 @@ class HandleResolver(MetadataResolver):
     def get_metadata(self, response: Response) -> Any:
         tree = html.fromstring(response.content)
         return tree.xpath("/html/head")[0]
+
+    @override
+    def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
+        self.resolve_title()
+        self.resolve_creators()
+        self.resolve_publication_date()
+        self.resolve_resource_type()
+        self.resolve_additional_descriptions()
+        return self.processed_metadata, self.problems
 
     @handle_errors(alert_user=True)
     def resolve_title(self) -> None:
@@ -110,7 +112,6 @@ class HandleResolver(MetadataResolver):
         if parsed:
             self.processed_metadata["publication_date"] = parsed
 
-    # TODO: by schema too? -> just set default value for load
     @handle_errors()
     def resolve_resource_type(self) -> None:
         """Set the resource type placeholder for Handle records."""
@@ -139,7 +140,6 @@ class HandleResolver(MetadataResolver):
         if des_list:
             self.processed_metadata["additional_descriptions"] = des_list
 
-    # TODO: perhaps move to schema
     def _parse_loose_date(self, date: str) -> str | None:
         """Parse a free-form date string, falling back to dateutil with a warning."""
         # 0000 is a special case happening a lot in LINDAT data that passes EDTF schema validation

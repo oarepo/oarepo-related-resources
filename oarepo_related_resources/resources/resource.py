@@ -46,4 +46,4 @@ class RelatedResourcesResource(Resource):
         """Create a record from external url."""
         identifier_url = resource_requestctx.data["identifier"]
         result = self.service.import_related_resource(g.identity, identifier_url)
-        return result.to_dict(), 201
+        return result.to_dict(), 200

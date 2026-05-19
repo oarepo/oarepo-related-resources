@@ -13,14 +13,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from flask import current_app
-from invenio_base.utils import obj_or_import_string
 from invenio_records_resources.services import ServiceSchemaWrapper
 from invenio_records_resources.services.base.service import Service
 from requests.exceptions import RetryError
 from urllib3.exceptions import MaxRetryError
 
 from oarepo_related_resources.errors import PIDDoesNotExistError, PIDProcessingError, UnsupportedPIDError
-from oarepo_related_resources.resolvers.base import ResolverProblem, ResolverProblemLevel
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -28,6 +26,7 @@ if TYPE_CHECKING:
     from flask_principal import Identity
 
     from oarepo_related_resources.resolvers import MetadataResolver
+    from oarepo_related_resources.resolvers.base import ResolverProblem
     from oarepo_related_resources.services.results import RelatedResourceItem
 
 
@@ -37,7 +36,7 @@ class RelatedResourcesService(Service):
     @property
     def resolvers(self) -> Generator[MetadataResolver]:
         """Return the list of resolvers."""
-        return (obj_or_import_string(res)() for res in self.config.resolvers)  # type: ignore[reportOptionalCall]
+        return (res() for res in self.config.resolvers)  # type: ignore[reportOptionalCall]
 
     @property
     def schema(self) -> ServiceSchemaWrapper:
@@ -49,18 +48,18 @@ class RelatedResourcesService(Service):
         """Returns the data schema instance."""
         return ServiceSchemaWrapper(self, schema=self.config.resolver_load_schema)
 
-    def _find_resolver(self, identifier_url: str) -> MetadataResolver:
+    def _find_resolver(self, identifier: str) -> MetadataResolver:
         url_format_resolvable = False
         for resolver in self.resolvers:
-            if resolver.can_resolve_identifier_url_format(identifier_url):
+            if resolver.resolves_identifier(identifier):
                 url_format_resolvable = True
-                if resolver.identifier_exists_at_fetch_url(identifier_url):
+                if resolver.identifier_exists_at_fetch_url(identifier):
                     return resolver
         if url_format_resolvable:
-            raise PIDDoesNotExistError(identifier_url)
-        raise UnsupportedPIDError(identifier_url)
+            raise PIDDoesNotExistError(identifier)
+        raise UnsupportedPIDError(identifier)
 
-    def _resolve(self, identifier_url: str) -> tuple[dict[str, Any], list[ResolverProblem]]:
+    def _resolve(self, identifier: str) -> tuple[dict[str, Any], list[ResolverProblem]]:
         """Resolve metadata with the first matching resolver.
 
         Returns ``(metadata, problems)`` where ``metadata`` is the resolver's
@@ -68,7 +67,7 @@ class RelatedResourcesService(Service):
         ``problems`` is the list of ResolverProblems collected during resolution.
         """
         try:
-            resolver = self._find_resolver(identifier_url)
+            resolver = self._find_resolver(identifier)
         except UnsupportedPIDError:
             raise
         except PIDDoesNotExistError:
@@ -80,26 +79,17 @@ class RelatedResourcesService(Service):
                 e = getattr(e, "reason", e)
             current_app.logger.exception(
                 "Unexpected error while finding resolver for id: %s",
-                identifier_url,
+                identifier,
             )
-            raise PIDProcessingError(identifier_url) from e
-        normalized_identifier_url = resolver.normalize_identifier_url(identifier_url)
+            raise PIDProcessingError(identifier) from e
+        identifier_url = resolver.create_identifier_url(identifier)
 
         try:
-            metadata, problems = resolver.resolve(normalized_identifier_url)
+            metadata, problems = resolver.resolve(identifier_url)
         except Exception:
-            current_app.logger.exception("Exception calling resolver %s %s", resolver, normalized_identifier_url)
+            current_app.logger.exception("Exception calling resolver %s %s", resolver, identifier_url)
             raise
 
-        metadata, resolve_schema_errors = self.resolver_load_schema.load(metadata, raise_errors=False)
-        for resolver_schema_error in resolve_schema_errors:
-            problem = ResolverProblem(  # TODO: check whether this is how we want to do it
-                resolver=resolver.provider,
-                message=f"Inner schema validation error on field: {resolver_schema_error['field']}, "
-                f"messages={resolver_schema_error['messages']}",
-                level=ResolverProblemLevel.WARNING,
-            )
-            problems.append(problem)
         return metadata, problems
 
     def import_related_resource(self, identity: Identity, identifier_url: str) -> RelatedResourceItem:

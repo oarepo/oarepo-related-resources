@@ -13,6 +13,7 @@ from __future__ import annotations
 from invenio_rdm_records.services.schemas import MetadataSchema  # type: ignore[attr-defined]
 from invenio_records_resources.services.base.config import ConfiguratorMixin, FromConfig, ServiceConfig
 
+from oarepo_related_resources.resolvers import CrossrefResolver, DataciteResolver, HandleResolver
 from oarepo_related_resources.services.permissions import (
     RelatedResourcesPermissionPolicy,
 )
@@ -20,9 +21,9 @@ from oarepo_related_resources.services.results import RelatedResourceItem
 
 # order implicitly decides priority
 DEFAULT_PERSISTENT_IDENTIFIER_RESOLVERS = [
-    "oarepo_related_resources.resolvers.DataciteResolver",
-    "oarepo_related_resources.resolvers.CrossrefResolver",
-    "oarepo_related_resources.resolvers.HandleResolver",
+    DataciteResolver,
+    CrossrefResolver,
+    HandleResolver,
 ]
 
 
@@ -36,7 +37,6 @@ class RelatedResourcesServiceConfig(ConfiguratorMixin, ServiceConfig):
         import_string=True,
     )
     schema = FromConfig("RELATED_RESOURCES_RECORD_SCHEMA", default=MetadataSchema)
-    resolver_load_schema = FromConfig("RELATED_RESOURCES_RESOLVER_LOAD_SCHEMA", default=MetadataSchema)
     result_item_cls = RelatedResourceItem
     resolvers = FromConfig(
         "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS", default=DEFAULT_PERSISTENT_IDENTIFIER_RESOLVERS

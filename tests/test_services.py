@@ -12,9 +12,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, override
 
 import marshmallow as ma
+import pytest
 from invenio_rdm_records.services.schemas import MetadataSchema  # type: ignore[attr-defined]
+from invenio_records_permissions import BasePermissionPolicy
+from invenio_records_permissions.generators import Disable
+from invenio_records_resources.services.errors import PermissionDeniedError
 
-from oarepo_related_resources.resolvers import DataciteResolver
+from oarepo_related_resources.resolvers import CrossrefResolver, DataciteResolver, HandleResolver
 
 if TYPE_CHECKING:
     from oarepo_related_resources.resolvers.base import ResolverProblem
@@ -36,32 +40,43 @@ class DataciteResolverSavingPersistentURL(DataciteResolver):
         return metadata, problems
 
 
-# TODO: perhaps it's a better idea to use dict and register through entrypoints
-#  so eg. datacite resolver can be directly overwritten
+class DenyAllPolicy(BasePermissionPolicy):
+    """Permission policy denying ``can_import_related`` for everyone."""
+
+    can_import_related = (Disable(),)
+
+
 CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS = [
-    "tests.test_services.DataciteResolverSavingPersistentURL",
-    "oarepo_related_resources.resolvers.CrossrefResolver",
-    "oarepo_related_resources.resolvers.HandleResolver",
+    DataciteResolverSavingPersistentURL,
+    CrossrefResolver,
+    HandleResolver,
 ]
 
 
-def test_base_function(app, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
-    service = app.extensions["related-resources-import-extension"].service
+def test_custom_policy_denies_authenticated_user(
+    app, service, logged_client, users, monkeypatch, mock_http, zenodo_doi
+):
+    """A policy denying ``can_import_related`` for everyone → 403 even for a logged-in user."""
+    monkeypatch.setitem(app.config, "RELATED_RESOURCES_PERMISSION_POLICY", DenyAllPolicy)
+    with pytest.raises(PermissionDeniedError):
+        service.import_related_resource(users[0].identity, zenodo_doi)
+
+
+def test_base_function(service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
     response = service.import_related_resource(users[0].identity, zenodo_doi)
     assert response.to_dict()["metadata"] == zenodo_imported_metadata
 
 
-def test_custom_schema(app, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
-    service = app.extensions["related-resources-import-extension"].service
+def test_custom_schema(app, service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
     monkeypatch.setitem(app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema)
     response = service.import_related_resource(users[0].identity, zenodo_doi)
     assert response.to_dict()["metadata"]["persistent_url"] == "here should be persistent url"
 
 
-def test_add_persistent_url_to_metadata(app, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
-    service = app.extensions["related-resources-import-extension"].service
+def test_add_persistent_url_to_metadata(
+    app, service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi
+):
     monkeypatch.setitem(app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema)
-    monkeypatch.setitem(app.config, "RELATED_RESOURCES_RESOLVER_LOAD_SCHEMA", PersistentURLDumpingSchema)
     monkeypatch.setitem(
         app.config, "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS", CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS
     )

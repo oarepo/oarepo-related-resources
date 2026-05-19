@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from oarepo_related_resources.resolvers.base import ResolverProblem
 
 
-class RelatedResourceItem(ServiceItemResult):
+class RelatedResourceItem(ServiceItemResult):  # add service, identity
     """Service result for a single related resource."""
 
     def __init__(

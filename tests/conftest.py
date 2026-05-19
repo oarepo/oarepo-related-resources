@@ -134,11 +134,13 @@ class MockResponse:
         payload: dict | None = None,
         content: bytes = b"ok",
         status_code: int = 200,
+        text: str | None = None,
     ):
         """Store the JSON payload, raw content, and status code for the mocked response."""
         self.status_code = status_code
         self._payload = payload or {}
         self.content = content
+        self.text = text if text is not None else (content.decode("utf-8", errors="replace"))
 
     def json(self) -> dict:
         """Return the stored JSON payload."""
@@ -147,25 +149,31 @@ class MockResponse:
 
 @pytest.fixture
 def mock_http(monkeypatch, datacite_response, handle_response, crossref_response):
-    """URL-keyed mock for ``requests.Session.get``.
-
-    Tests register ``mock_http[url] = MockResponse(...)`` and any GET to an
-    unregistered URL fails loudly. Scoped to the test function via monkeypatch
-    so cross-test bleed is impossible.
-    """
-    routes: dict[str, MockResponse] = {}
-    routes["https://api.datacite.org/dois/10.5281/zenodo.19032692"] = MockResponse(payload=datacite_response)
-    routes["https://hdl.handle.net/11234/1-6144"] = MockResponse(content=handle_response.encode("utf-8"))
-    routes["https://api.crossref.org/works/doi/10.1575/1912/1099"] = MockResponse(payload=crossref_response)
+    """URL-keyed mock for ``requests.Session.get``."""
+    routes: dict[str, MockResponse | BaseException] = {
+        "https://api.datacite.org/dois/10.5281/zenodo.19032692": MockResponse(payload=datacite_response),
+        "https://hdl.handle.net/11234/1-6144": MockResponse(content=handle_response.encode("utf-8")),
+        "https://api.crossref.org/works/doi/10.1575/1912/1099": MockResponse(payload=crossref_response),
+    }
 
     def _get(self, *args: Any, **kwargs: Any) -> MockResponse:
         url = kwargs.get("url") or (args[0] if args else None)
         if url not in routes:
             return MockResponse(status_code=404, payload={"errors": [{"status": "404", "title": "Not found"}]})
-        return routes[url]
+        entry = routes[url]
+        if isinstance(entry, BaseException):
+            raise entry
+        if callable(entry) and not isinstance(entry, MockResponse):
+            return entry(url, kwargs)
+        return entry
 
     monkeypatch.setattr(requests.Session, "get", _get)
     return routes
+
+
+@pytest.fixture
+def service(app):
+    return app.extensions["related-resources-import-extension"].service
 
 
 @pytest.fixture(scope="module")

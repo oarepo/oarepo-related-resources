@@ -18,6 +18,7 @@ from invenio_i18n import lazy_gettext as _
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
+    ResolverProblem,
 )
 from .utils import build_person_or_org, handle_errors
 
@@ -49,17 +50,18 @@ class CrossrefResolver(DoiResolverBase):
     not_found_message = _("The identifier looks like a DOI, but it was not found in the CrossRef registry.")
     unexpected_error_message = _("Unexpected error while resolving the DOI. Please fill the metadata manually.")
 
-    fields_to_resolve = (
-        "title",
-        "creators",
-        "publication_date",
-        "resource_type",
-        "description",
-    )
-
     @override
     def get_metadata(self, response: Response) -> Any:
         return response.json().get("message", {})
+
+    @override
+    def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
+        self.resolve_title()
+        self.resolve_creators()
+        self.resolve_publication_date()
+        self.resolve_resource_type()
+        self.resolve_description()
+        return self.processed_metadata, self.problems
 
     @handle_errors(alert_user=True)
     def resolve_title(self) -> None:
@@ -109,6 +111,7 @@ class CrossrefResolver(DoiResolverBase):
             return
         self.processed_metadata["publication_date"] = publication_date
 
+    # TODO: type is in crossref response?
     @handle_errors()
     def resolve_resource_type(self) -> None:
         """Set the resource type placeholder for Crossref records."""

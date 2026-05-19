@@ -166,12 +166,17 @@ def lookup_vocabulary_by_prop(
     return cast("str", hits[0]["id"])
 
 
+def _pick_shortest_id(hits: list[dict[str, Any]]) -> str:
+    """Pick the shortest ``id`` from vocabulary hits, breaking ties alphabetically."""
+    return min((cast("str", h["id"]) for h in hits), key=lambda i: (len(i), i))
+
+
 def lookup_vocabulary_by_prop_handle_multiple(
     vocabulary_id: str,
     value: str,
     *,
     prop: str = "datacite",
-    handle_multiple_fn: Callable[[list[dict[str, Any]]], str] = lambda hits: cast("str", hits[0]["id"]),
+    handle_multiple_fn: Callable[[list[dict[str, Any]]], str] = _pick_shortest_id,
 ) -> str | None:
     """Look up a single vocabulary entry by searching `props.<prop>` for `value`.
 

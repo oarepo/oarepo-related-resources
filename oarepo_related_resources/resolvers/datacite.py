@@ -19,6 +19,7 @@ from invenio_i18n import lazy_gettext as _
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
+    ResolverProblem,
 )
 from .utils import (
     build_person_or_org,
@@ -43,30 +44,32 @@ class DataciteResolver(DoiResolverBase):
     not_found_message = _("The identifier looks like a DOI, but it was not found in the DataCite registry.")
     unexpected_error_message = _("Unexpected error while resolving the DOI. Please fill the metadata manually.")
 
-    fields_to_resolve = (
-        "title",
-        "creators",
-        "additional_titles",
-        "publication_date",
-        "resource_type",
-        "publisher",
-        "contributors",
-        "description",
-        "dates",
-        "subjects",
-        "language",
-        "related_identifiers",
-        "additional_descriptions",
-        "sizes",
-        "formats",
-        "version",
-        "rights",
-        "identifiers",
-    )
-
     @override
     def get_metadata(self, response: Response) -> dict:
         return response.json()["data"]["attributes"]  # type: ignore[no-any-return]
+
+    @override
+    def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
+        """Map the resolver's metadata from identifier API response to the expected format."""
+        self.resolve_title()
+        self.resolve_creators()
+        self.resolve_additional_titles()
+        self.resolve_publication_date()
+        self.resolve_resource_type()
+        self.resolve_publisher()
+        self.resolve_contributors()
+        self.resolve_description()
+        self.resolve_dates()
+        self.resolve_subjects()
+        self.resolve_language()
+        self.resolve_related_identifiers()
+        self.resolve_additional_descriptions()
+        self.resolve_sizes()
+        self.resolve_formats()
+        self.resolve_version()
+        self.resolve_rights()
+        self.resolve_identifiers()
+        return self.processed_metadata, self.problems
 
     @handle_errors()
     def resolve_additional_descriptions(self) -> None:
