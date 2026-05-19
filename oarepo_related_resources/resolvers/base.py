@@ -178,8 +178,9 @@ class MetadataResolver(ABC):
         )
         return self._fetch_response_alive(response.status_code)
 
-    def fetch(self, url: str, *, allow_redirects: bool = True) -> Response:
+    def fetch(self, identifier: str, *, allow_redirects: bool = True) -> Response:
         """GET response from identifier API."""
+        url = self._fetch_url(identifier)
         response = self.session.get(url=url, timeout=self.resolve_timeout, allow_redirects=allow_redirects)
         if response.status_code == HTTPStatus.OK:
             return response  # type: ignore[no-any-return]
@@ -206,7 +207,7 @@ class MetadataResolver(ABC):
         If the metadata can not be resolved, returns (None, list[ResolverProblem]).
         If the metadata is resolved, returns (metadata_dict, list[ResolverProblem]).
         """
-        response = self.fetch(self._fetch_url(identifier))
+        response = self.fetch(identifier)
         self.metadata = self.get_metadata(response)
         return self.resolve_metadata()
 

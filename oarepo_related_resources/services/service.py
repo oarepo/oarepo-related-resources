@@ -102,10 +102,10 @@ class RelatedResourcesService(Service):
             problems.append(problem)
         return metadata, problems
 
-    def import_related_resource(self, identity: Identity, pid: str) -> RelatedResourceItem:
+    def import_related_resource(self, identity: Identity, identifier_url: str) -> RelatedResourceItem:
         """Resolve the PID and return the loaded metadata along with any validation/import errors."""
         self.require_permission(identity, "import_related")
-        record_data, import_errors = self._resolve(pid)
+        record_data, import_errors = self._resolve(identifier_url)
         data, validation_errors = self.schema.load(
             record_data,
             raise_errors=False,

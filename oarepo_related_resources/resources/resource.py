@@ -44,6 +44,6 @@ class RelatedResourcesResource(Resource):
     @response_handler()
     def import_related_resource(self) -> tuple[dict[str, Any], int]:
         """Create a record from external url."""
-        pid = resource_requestctx.data["id"]
-        result = self.service.import_related_resource(g.identity, pid)
+        identifier_url = resource_requestctx.data["identifier"]
+        result = self.service.import_related_resource(g.identity, identifier_url)
         return result.to_dict(), 201

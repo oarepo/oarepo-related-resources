@@ -20,7 +20,7 @@ from __future__ import annotations
 
 
 def test_datacite_import(app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi):
-    response = logged_client(users[0]).post("/related-records", json={"id": zenodo_doi})
+    response = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
     jsn = response.json
     metadata = jsn["metadata"]
     assert metadata == zenodo_imported_metadata
@@ -28,7 +28,7 @@ def test_datacite_import(app, logged_client, users, mock_http, zenodo_imported_m
 
 
 def test_handle_import(app, logged_client, users, mock_http, handle_imported_metadata, handle):
-    response = logged_client(users[0]).post("/related-records", json={"id": handle})
+    response = logged_client(users[0]).post("/related-records", json={"identifier": handle})
     jsn = response.json
     metadata = jsn["metadata"]
     assert metadata == handle_imported_metadata
@@ -36,7 +36,7 @@ def test_handle_import(app, logged_client, users, mock_http, handle_imported_met
 
 
 def test_crossref_import(app, logged_client, users, mock_http, crossref_imported_metadata, crossref_doi):
-    response = logged_client(users[0]).post("/related-records", json={"id": crossref_doi})
+    response = logged_client(users[0]).post("/related-records", json={"identifier": crossref_doi})
     jsn = response.json
     metadata = jsn["metadata"]
     assert metadata == crossref_imported_metadata
