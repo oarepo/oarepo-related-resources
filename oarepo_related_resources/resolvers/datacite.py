@@ -160,7 +160,8 @@ class DataciteResolver(DoiResolverBase):
             date = d.get("date")
             _type = d.get("dateType")
             # no duplicate values found in rdm fixtures
-            # TODO: more effort to systematize missing vocabularies (eg. it logs error but does not return it user here)
+            # TODO: perhaps more effort to systematize missing vocabularies
+            #  (eg. it logs error but does not return it user here)
             resolved_datatype = lookup_vocabulary_by_prop("datetypes", _type)
             if resolved_datatype is None:
                 continue
