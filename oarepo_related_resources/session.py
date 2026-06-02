@@ -78,6 +78,6 @@ def create_session_with_retries(
     session.mount("http://", adapter)
     # be polite and set User-Agent and From headers so that we can be contacted if needed
     session.headers.update(
-        {"User-Agent": invenio_user_agent(), "From": current_app.config["APP_RDM_ADMIN_EMAIL_RECIPIENT"]}
+        {"User-Agent": invenio_user_agent(), "From": current_app.config.get("APP_RDM_ADMIN_EMAIL_RECIPIENT") or ""},
     )
     return session
