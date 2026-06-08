@@ -77,9 +77,7 @@ def resolve_language(language: str | None) -> str | None:
     try:
         longer_code = langcodes.Language.get(language.lower()).to_alpha3()
     except Exception:
-        current_app.logger.exception(
-            "Failed to map language code '%s' to alpha-3.", language
-        )
+        current_app.logger.exception("Failed to map language code '%s' to alpha-3.", language)
         return None
     if not vocabulary_entry_exists("languages", longer_code):
         return None
@@ -224,9 +222,7 @@ def handle_errors(alert_user: bool = False) -> Any:
                         level=ResolverProblemLevel.ERROR,
                         exc=e,
                     )
-                current_app.logger.exception(
-                    "Function '%s' failed with error: '%s'.", func.__name__, e
-                )  # noqa: TRY401
+                current_app.logger.exception("Function '%s' failed with error: '%s'.", func.__name__, e)  # noqa: TRY401
             return None  # discard
 
         return inner

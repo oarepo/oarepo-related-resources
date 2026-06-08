@@ -18,18 +18,10 @@ CROSSREF_URL = "https://api.crossref.org/works/doi"
 
 ORCID_PUBLIC_DUMP_S3_BUCKET_NAME = "v3.0-summaries"
 
-RELATED_RESOURCES_SERVICE_CLASS = (
-    "oarepo_related_resources.services.RelatedResourcesService"
-)
-RELATED_RESOURCES_SERVICE_CONFIG_CLASS = (
-    "oarepo_related_resources.services.RelatedResourcesServiceConfig"
-)
-RELATED_RESOURCES_RESOURCE_CLASS = (
-    "oarepo_related_resources.resources.RelatedResourcesResource"
-)
-RELATED_RESOURCES_RESOURCE_CONFIG_CLASS = (
-    "oarepo_related_resources.resources.RelatedResourcesResourceConfig"
-)
+RELATED_RESOURCES_SERVICE_CLASS = "oarepo_related_resources.services.RelatedResourcesService"
+RELATED_RESOURCES_SERVICE_CONFIG_CLASS = "oarepo_related_resources.services.RelatedResourcesServiceConfig"
+RELATED_RESOURCES_RESOURCE_CLASS = "oarepo_related_resources.resources.RelatedResourcesResource"
+RELATED_RESOURCES_RESOURCE_CONFIG_CLASS = "oarepo_related_resources.resources.RelatedResourcesResourceConfig"
 
 try:
     importlib.metadata.version("ccmm-invenio")

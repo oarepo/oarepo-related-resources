@@ -13,7 +13,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from flask_resources import HTTPJSONException, ResourceConfig, create_error_handler
+from flask_resources import (
+    HTTPJSONException,
+    ResourceConfig,
+    ResponseHandler,
+    create_error_handler,
+)
+from flask_resources.serializers import JSONSerializer
 from invenio_i18n import lazy_gettext as _
 from invenio_records_resources.services.errors import PermissionDeniedError
 
@@ -23,10 +29,6 @@ from oarepo_related_resources.errors import (
     UnsupportedPIDError,
     UpstreamFetchError,
 )
-from flask_resources import (
-    ResponseHandler,
-)
-from flask_resources.serializers import JSONSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -43,7 +45,7 @@ class RelatedResourcesResourceConfig(ResourceConfig):
     routes: Mapping[str, str] = {
         "item": "",
     }
-    response_handlers = {
+    response_handlers = {  # noqa: RUF012
         "application/json": ResponseHandler(JSONSerializer()),
         "application/vnd.inveniordm.v1+json": ResponseHandler(JSONSerializer()),
     }

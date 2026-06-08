@@ -86,16 +86,12 @@ class RelatedResourcesService(Service):
         try:
             metadata, problems = resolver.resolve(identifier_url)
         except Exception:
-            current_app.logger.exception(
-                "Exception calling resolver %s %s", resolver, identifier_url
-            )
+            current_app.logger.exception("Exception calling resolver %s %s", resolver, identifier_url)
             raise
 
         return metadata, problems
 
-    def import_related_resource(
-        self, identity: Identity, identifier_url: str
-    ) -> RelatedResourceItem:
+    def import_related_resource(self, identity: Identity, identifier_url: str) -> RelatedResourceItem:
         """Resolve the PID and return the loaded metadata along with any validation/import errors."""
         self.require_permission(identity, "import_related")
         record_data, import_errors = self._resolve(identifier_url)

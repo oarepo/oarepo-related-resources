@@ -47,12 +47,8 @@ class CrossrefResolver(DoiResolverBase):
 
     provider = "Crossref"
 
-    not_found_message = _(
-        "The identifier looks like a DOI, but it was not found in the CrossRef registry."
-    )
-    unexpected_error_message = _(
-        "Unexpected error while resolving the DOI. Please fill the metadata manually."
-    )
+    not_found_message = _("The identifier looks like a DOI, but it was not found in the CrossRef registry.")
+    unexpected_error_message = _("Unexpected error while resolving the DOI. Please fill the metadata manually.")
 
     @override
     def get_metadata(self, response: Response) -> Any:
@@ -92,11 +88,7 @@ class CrossrefResolver(DoiResolverBase):
                     }
                 ]
 
-            creator_list.append(
-                build_person_or_org(
-                    name=name, family=family, given=given, identifiers=identifiers
-                )
-            )
+            creator_list.append(build_person_or_org(name=name, family=family, given=given, identifiers=identifiers))
         if creator_list:
             self.processed_metadata["creators"] = creator_list
 
@@ -113,8 +105,7 @@ class CrossrefResolver(DoiResolverBase):
             publication_date = "-".join(f"{x:02d}" for x in parts[:3])
         except Exception as e:  # noqa: BLE001
             self._add_problem(
-                _("Invalid publication date-parts format: %s.")
-                % publication_date_parts,
+                _("Invalid publication date-parts format: %s.") % publication_date_parts,
                 exc=e,
             )
             return
@@ -124,9 +115,7 @@ class CrossrefResolver(DoiResolverBase):
     @handle_errors()
     def resolve_resource_type(self) -> None:
         """Set the resource type placeholder for Crossref records."""
-        self.processed_metadata["resource_type"] = {
-            "id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
-        }
+        self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
 
     @handle_errors()
     def resolve_description(self) -> None:

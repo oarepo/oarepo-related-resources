@@ -42,12 +42,8 @@ class DataciteResolver(DoiResolverBase):
 
     provider = "Datacite"
 
-    not_found_message = _(
-        "The identifier looks like a DOI, but it was not found in the DataCite registry."
-    )
-    unexpected_error_message = _(
-        "Unexpected error while resolving the DOI. Please fill the metadata manually."
-    )
+    not_found_message = _("The identifier looks like a DOI, but it was not found in the DataCite registry.")
+    unexpected_error_message = _("Unexpected error while resolving the DOI. Please fill the metadata manually.")
 
     @override
     def get_metadata(self, response: Response) -> dict:
@@ -84,12 +80,7 @@ class DataciteResolver(DoiResolverBase):
             _type = d.get("descriptionType")
             description = d.get("description")
 
-            if (
-                description
-                and isinstance(_type, str)
-                and _type != "Abstract"
-                and isinstance(description, str)
-            ):
+            if description and isinstance(_type, str) and _type != "Abstract" and isinstance(description, str):
                 d_type = re.sub(r"(?<!^)([A-Z])", r"-\1", _type).lower()
                 if not vocabulary_entry_exists("descriptiontypes", d_type):
                     continue
@@ -220,11 +211,7 @@ class DataciteResolver(DoiResolverBase):
     @handle_errors(alert_user=True)
     def resolve_title(self) -> None:
         """Extract the main title from DataCite metadata and validate its length."""
-        titles = [
-            t["title"]
-            for t in self.metadata.get("titles", [])
-            if "title" in t and "titleType" not in t
-        ]
+        titles = [t["title"] for t in self.metadata.get("titles", []) if "title" in t and "titleType" not in t]
         if titles:
             self.processed_metadata["title"] = titles[0]
 
@@ -237,9 +224,7 @@ class DataciteResolver(DoiResolverBase):
             t_type = title.get("titleType")
             if t_type is None:  # it is main title
                 continue
-            resolved_type = lookup_vocabulary_by_prop(
-                "titletypes", t_type
-            )  # no duplicate values found in rdm fixtures
+            resolved_type = lookup_vocabulary_by_prop("titletypes", t_type)  # no duplicate values found in rdm fixtures
             if resolved_type is None:
                 continue
             t_lang = None
@@ -258,10 +243,7 @@ class DataciteResolver(DoiResolverBase):
     @handle_errors(alert_user=True)
     def resolve_creators(self) -> None:
         """Extract and map creator information from DataCite metadata."""
-        creators = [
-            self._resolve_datacite_author(creator, "creator")
-            for creator in self.metadata.get("creators", [])
-        ]
+        creators = [self._resolve_datacite_author(creator, "creator") for creator in self.metadata.get("creators", [])]
         creators = [c for c in creators if c is not None]
         if creators:
             self.processed_metadata["creators"] = creators
@@ -297,19 +279,13 @@ class DataciteResolver(DoiResolverBase):
         if escaped == "Image":
             self.processed_metadata["resource_type"] = {"id": "image"}
             return
-        resolved_type = lookup_vocabulary_by_prop_handle_multiple(
-            vocabulary_id, escaped.lower()
-        )
+        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped.lower())
         if not resolved_type:
             self._add_problem(
-                _(
-                    "The provided resource type %s could not be parsed. The default value %s has been applied."
-                )
+                _("The provided resource type %s could not be parsed. The default value %s has been applied.")
                 % (_type, RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE),
             )
-            self.processed_metadata["resource_type"] = {
-                "id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
-            }
+            self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
             return
         self.processed_metadata["resource_type"] = {"id": resolved_type}
 
@@ -380,9 +356,7 @@ class DataciteResolver(DoiResolverBase):
 
         return affiliations_list
 
-    def _resolve_datacite_author(
-        self, author: dict[str, Any], type_: str
-    ) -> dict[str, Any] | None:
+    def _resolve_datacite_author(self, author: dict[str, Any], type_: str) -> dict[str, Any] | None:
         author_type = (author.get("nameType") or "personal").lower()
         given = author.get("givenName")
         family = author.get("familyName")
@@ -397,12 +371,8 @@ class DataciteResolver(DoiResolverBase):
             family = family or parsed_family
             given = given or (parsed_given or None)
 
-        identifiers = self._resolve_datacite_name_identifiers(
-            name_identifiers=author.get("nameIdentifiers", [])
-        )
-        affiliations = self._resolve_datacite_affiliations(
-            author.get("affiliation", [])
-        )
+        identifiers = self._resolve_datacite_name_identifiers(name_identifiers=author.get("nameIdentifiers", []))
+        affiliations = self._resolve_datacite_affiliations(author.get("affiliation", []))
         return build_person_or_org(
             name=name,
             type_=author_type,
@@ -413,9 +383,7 @@ class DataciteResolver(DoiResolverBase):
         )
 
     @handle_errors()
-    def _resolve_datacite_name_identifiers(
-        self, *, name_identifiers: list | None
-    ) -> list:
+    def _resolve_datacite_name_identifiers(self, *, name_identifiers: list | None) -> list:
         """Resolve and normalize name identifiers including ORCID handling."""
         from oarepo_related_resources.services import resolve_orcid
 

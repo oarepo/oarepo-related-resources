@@ -61,9 +61,7 @@ class ResolverProblem:
             "resolver": self.resolver,
             "message": self.message,
             "level": self.level.value,
-            "original_exception": str(self.original_exception)
-            if self.original_exception
-            else None,
+            "original_exception": str(self.original_exception) if self.original_exception else None,
         }
 
 
@@ -161,9 +159,7 @@ class MetadataResolver(ABC):
     def fetch(self, identifier: str, *, allow_redirects: bool = True) -> Response:
         """GET response from identifier API."""
         url = self._create_fetch_url(identifier)
-        response = self.session.get(
-            url=url, timeout=self.resolve_timeout, allow_redirects=allow_redirects
-        )
+        response = self.session.get(url=url, timeout=self.resolve_timeout, allow_redirects=allow_redirects)
         if response.status_code == HTTPStatus.OK:
             return response  # type: ignore[no-any-return]
         if response.status_code == HTTPStatus.NOT_FOUND:
@@ -176,9 +172,7 @@ class MetadataResolver(ABC):
                 response.content,
             )
             error_message = self.unexpected_error_message
-        raise UpstreamFetchError(
-            error_message, url, response.status_code, response.text
-        )
+        raise UpstreamFetchError(error_message, url, response.status_code, response.text)
 
     @abstractmethod
     def get_metadata(self, response: Response) -> Any:

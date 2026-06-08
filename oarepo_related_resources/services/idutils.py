@@ -37,13 +37,9 @@ if TYPE_CHECKING:
 HTTP_OK = 200
 
 
-def create_vocabulary_item(
-    vocabulary_service_id: str, data: dict[str, Any], uow: UnitOfWork | None = None
-) -> Any:
+def create_vocabulary_item(vocabulary_service_id: str, data: dict[str, Any], uow: UnitOfWork | None = None) -> Any:
     """Get or create a vocabulary item."""
-    vocab_service = cast(
-        "RecordService", current_service_registry.get(vocabulary_service_id)
-    )
+    vocab_service = cast("RecordService", current_service_registry.get(vocabulary_service_id))
     try:
         return vocab_service.read(system_identity, data["id"]).to_dict()
     except Exception:  # noqa: BLE001, S110
@@ -94,9 +90,7 @@ def dict_lookup_with_arrays(data: dict, path: str) -> Generator[tuple[Any, Any, 
     returns tuples of (value, parent, full_path).
     """
 
-    def __lookup(
-        data: Any, parts: list[str], path: list[str], parent: Any
-    ) -> Generator[tuple[Any, Any, str]]:
+    def __lookup(data: Any, parts: list[str], path: list[str], parent: Any) -> Generator[tuple[Any, Any, str]]:
         if not parts:
             if isinstance(data, list):
                 for didx, d in enumerate(data):
@@ -179,9 +173,9 @@ class ORCIDImporter:
             aws_secret_access_key=aws_secret_access_key,
         )
 
-    def orcid_to_names(
+    def orcid_to_names(  # noqa: PLR0915, PLR0912, C901
         self, orcid_response: etree._Element, parent: Any = None
-    ) -> dict:  # noqa: PLR0915, PLR0912, C901
+    ) -> dict:
         """Convert ORCID XML response to names vocabulary schema.
 
         Args:
@@ -202,11 +196,7 @@ class ORCIDImporter:
         }
 
         def element_text(elem: etree._Element | None) -> str | None:
-            return (
-                elem.text
-                if elem is not None and elem.text and elem.text.strip()
-                else None
-            )
+            return elem.text if elem is not None and elem.text and elem.text.strip() else None
 
         result_identifiers: list[dict[str, str]] = []
         result: dict[str, Any] = {"identifiers": result_identifiers}
@@ -219,12 +209,8 @@ class ORCIDImporter:
         if person_elem is not None:
             name_elem = person_elem.find(".//person:name", namespaces)
             if name_elem is not None:
-                given_name_elem = name_elem.find(
-                    ".//personal-details:given-names", namespaces
-                )
-                family_name_elem = name_elem.find(
-                    ".//personal-details:family-name", namespaces
-                )
+                given_name_elem = name_elem.find(".//personal-details:given-names", namespaces)
+                family_name_elem = name_elem.find(".//personal-details:family-name", namespaces)
 
                 given_name = element_text(given_name_elem) or ""
                 family_name = element_text(family_name_elem) or ""
@@ -252,9 +238,7 @@ class ORCIDImporter:
             result["name"] = parent.get("name", "")
 
         # Add ORCID identifier
-        orcid_path_elem = orcid_response.find(
-            ".//common:orcid-identifier/common:path", namespaces
-        )
+        orcid_path_elem = orcid_response.find(".//common:orcid-identifier/common:path", namespaces)
         orcid_path = element_text(orcid_path_elem)
         if orcid_path:
             result_identifiers.append({"identifier": orcid_path, "scheme": "orcid"})
@@ -268,9 +252,7 @@ class ORCIDImporter:
 
         seen_affiliations = set()
         for group in affiliation_groups:
-            employment_summaries = group.findall(
-                ".//employment:employment-summary", namespaces
-            )
+            employment_summaries = group.findall(".//employment:employment-summary", namespaces)
             for employment in employment_summaries:
                 org_elem = employment.find(".//common:organization", namespaces)
                 if org_elem is not None:
@@ -281,9 +263,7 @@ class ORCIDImporter:
                         affiliation = {"name": org_name}
 
                         # Try to get ROR identifier if available
-                        disambiguated_org = org_elem.find(
-                            ".//common:disambiguated-organization", namespaces
-                        )
+                        disambiguated_org = org_elem.find(".//common:disambiguated-organization", namespaces)
                         if disambiguated_org is not None:
                             disambiguation_source_elem = disambiguated_org.find(
                                 ".//common:disambiguation-source", namespaces
@@ -293,17 +273,13 @@ class ORCIDImporter:
                                 namespaces,
                             )
 
-                            disambiguation_source = element_text(
-                                disambiguation_source_elem
-                            )
+                            disambiguation_source = element_text(disambiguation_source_elem)
                             org_identifier = element_text(org_identifier_elem)
 
                             if disambiguation_source == "ROR" and org_identifier:
                                 # Extract ROR ID from URL if it's a full URL
                                 if org_identifier.startswith("https://ror.org/"):
-                                    ror_id = org_identifier.split("https://ror.org/")[
-                                        -1
-                                    ]
+                                    ror_id = org_identifier.split("https://ror.org/")[-1]
                                     affiliation["id"] = ror_id
                                 else:
                                     affiliation["id"] = org_identifier
@@ -315,9 +291,7 @@ class ORCIDImporter:
                                 )
 
                         # Only append if this affiliation hasn't been seen before
-                        affiliation_fingerprint = affiliation.get("id") or json.dumps(
-                            affiliation, sort_keys=True
-                        )
+                        affiliation_fingerprint = affiliation.get("id") or json.dumps(affiliation, sort_keys=True)
                         if affiliation_fingerprint not in seen_affiliations:
                             seen_affiliations.add(affiliation_fingerprint)
                             affiliations.append(affiliation)
@@ -360,14 +334,9 @@ class ORCIDImporter:
             orcid = orcid.split("http://orcid.org/")[-1]
         if check_existing:
             with contextlib.suppress(OpenSearchException):
-                hits = svc.search(
-                    system_identity, params={"q": f"identifiers.identifier:{orcid}"}
-                )
+                hits = svc.search(system_identity, params={"q": f"identifiers.identifier:{orcid}"})
                 for hit in hits:
-                    if any(
-                        id_["identifier"] == orcid and id_["scheme"] == "orcid"
-                        for id_ in hit["identifiers"]
-                    ):
+                    if any(id_["identifier"] == orcid and id_["scheme"] == "orcid" for id_ in hit["identifiers"]):
                         return hit
 
         try:
@@ -378,18 +347,14 @@ class ORCIDImporter:
 
             xml_data = response["Body"].read()
         except ClientError as e:
-            raise ValidationError(
-                f"ORCID {orcid} could not be resolved.", field_name=path
-            ) from e
+            raise ValidationError(f"ORCID {orcid} could not be resolved.", field_name=path) from e
 
         xml_el = etree.fromstring(xml_data)
 
         names_record = self.orcid_to_names(xml_el, parent=parent)
 
         if create_vocabulary_record:
-            return create_vocabulary_item(
-                vocabulary_service_id=vocabulary, data=names_record, uow=uow
-            )
+            return create_vocabulary_item(vocabulary_service_id=vocabulary, data=names_record, uow=uow)
         return names_record
 
 
@@ -464,9 +429,7 @@ def resolve_ror(  # noqa: PLR0913
     )
     data = transformer.apply(data)
     if create_vocabulary_record:
-        return create_vocabulary_item(
-            vocabulary_service_id=vocabulary, data=data.entry, uow=uow
-        )
+        return create_vocabulary_item(vocabulary_service_id=vocabulary, data=data.entry, uow=uow)
     return data.entry
 
 
