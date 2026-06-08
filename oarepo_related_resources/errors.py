@@ -42,7 +42,11 @@ class UnsupportedPIDError(Exception):
     def __init__(self, identifier: str):
         """Construct."""
         self.identifier = identifier
-        super().__init__(gettext("Unsupported identifier type '%(identifier)s'.", identifier=identifier))
+        super().__init__(
+            gettext(
+                "Unsupported identifier type '%(identifier)s'.", identifier=identifier
+            )
+        )
 
 
 class PIDProcessingError(Exception):
@@ -62,7 +66,9 @@ class PIDProcessingError(Exception):
 class UpstreamFetchError(Exception):
     """Raised when an error occurs in response from external resource call."""
 
-    def __init__(self, message: str | LazyString, url: str, error_code: int, content: str):
+    def __init__(
+        self, message: str | LazyString, url: str, error_code: int, content: str
+    ):
         """Construct."""
         self.error_code = error_code
         super().__init__(

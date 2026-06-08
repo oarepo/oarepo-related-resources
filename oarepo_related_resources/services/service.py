@@ -18,7 +18,11 @@ from invenio_records_resources.services.base.service import Service
 from requests.exceptions import RetryError
 from urllib3.exceptions import MaxRetryError
 
-from oarepo_related_resources.errors import PIDDoesNotExistError, PIDProcessingError, UnsupportedPIDError
+from oarepo_related_resources.errors import (
+    PIDDoesNotExistError,
+    PIDProcessingError,
+    UnsupportedPIDError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -82,12 +86,16 @@ class RelatedResourcesService(Service):
         try:
             metadata, problems = resolver.resolve(identifier_url)
         except Exception:
-            current_app.logger.exception("Exception calling resolver %s %s", resolver, identifier_url)
+            current_app.logger.exception(
+                "Exception calling resolver %s %s", resolver, identifier_url
+            )
             raise
 
         return metadata, problems
 
-    def import_related_resource(self, identity: Identity, identifier_url: str) -> RelatedResourceItem:
+    def import_related_resource(
+        self, identity: Identity, identifier_url: str
+    ) -> RelatedResourceItem:
         """Resolve the PID and return the loaded metadata along with any validation/import errors."""
         self.require_permission(identity, "import_related")
         record_data, import_errors = self._resolve(identifier_url)

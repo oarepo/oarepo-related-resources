@@ -23,6 +23,10 @@ from oarepo_related_resources.errors import (
     UnsupportedPIDError,
     UpstreamFetchError,
 )
+from flask_resources import (
+    ResponseHandler,
+)
+from flask_resources.serializers import JSONSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -38,6 +42,10 @@ class RelatedResourcesResourceConfig(ResourceConfig):
     url_prefix = "/related-records"
     routes: Mapping[str, str] = {
         "item": "",
+    }
+    response_handlers = {
+        "application/json": ResponseHandler(JSONSerializer()),
+        "application/vnd.inveniordm.v1+json": ResponseHandler(JSONSerializer()),
     }
     error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # type: ignore[reportIncompatibleVariableOverride]
         PIDDoesNotExistError: create_error_handler(

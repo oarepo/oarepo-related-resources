@@ -45,29 +45,47 @@ class RelatedResourcesImportExtension:
         app.config.setdefault("DATACITE_URL", config.DATACITE_URL)
         app.config.setdefault("HANDLE_URL", config.HANDLE_URL)
         app.config.setdefault("CROSSREF_URL", config.CROSSREF_URL)
-        app.config.setdefault("ORCID_PUBLIC_DUMP_S3_BUCKET_NAME", config.ORCID_PUBLIC_DUMP_S3_BUCKET_NAME)
-        app.config.setdefault("RELATED_RESOURCES_SERVICE_CLASS", config.RELATED_RESOURCES_SERVICE_CLASS)
+        app.config.setdefault(
+            "ORCID_PUBLIC_DUMP_S3_BUCKET_NAME", config.ORCID_PUBLIC_DUMP_S3_BUCKET_NAME
+        )
+        app.config.setdefault(
+            "RELATED_RESOURCES_SERVICE_CLASS", config.RELATED_RESOURCES_SERVICE_CLASS
+        )
         app.config.setdefault(
             "RELATED_RESOURCES_SERVICE_CONFIG_CLASS",
             config.RELATED_RESOURCES_SERVICE_CONFIG_CLASS,
         )
-        app.config.setdefault("RELATED_RESOURCES_RESOURCE_CLASS", config.RELATED_RESOURCES_RESOURCE_CLASS)
+        app.config.setdefault(
+            "RELATED_RESOURCES_RESOURCE_CLASS", config.RELATED_RESOURCES_RESOURCE_CLASS
+        )
         app.config.setdefault(
             "RELATED_RESOURCES_RESOURCE_CONFIG_CLASS",
             config.RELATED_RESOURCES_RESOURCE_CONFIG_CLASS,
         )
-        app.config.setdefault("RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE", config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE)
-        app.config.setdefault("RELATED_RESOURCES_DEFAULT_TIMEOUT", config.RELATED_RESOURCES_DEFAULT_TIMEOUT)
+        app.config.setdefault(
+            "RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE",
+            config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE,
+        )
+        app.config.setdefault(
+            "RELATED_RESOURCES_DEFAULT_TIMEOUT",
+            config.RELATED_RESOURCES_DEFAULT_TIMEOUT,
+        )
 
     def init_services(self, app: Flask) -> None:
         """Initialize the services for the extension."""
-        self.service = obj_or_import_string(app.config["RELATED_RESOURCES_SERVICE_CLASS"])(  # type: ignore[reportOptionalCall]
-            obj_or_import_string(app.config["RELATED_RESOURCES_SERVICE_CONFIG_CLASS"]).build(app)  # type: ignore[reportOptionalMemberAccess]
+        self.service = obj_or_import_string(
+            app.config["RELATED_RESOURCES_SERVICE_CLASS"]
+        )(  # type: ignore[reportOptionalCall]
+            obj_or_import_string(
+                app.config["RELATED_RESOURCES_SERVICE_CONFIG_CLASS"]
+            ).build(app)  # type: ignore[reportOptionalMemberAccess]
         )
 
     def init_resources(self, app: Flask) -> None:
         """Instantiate the resource for the extension."""
-        self.resource = obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CLASS"])(  # type: ignore[reportOptionalCall]
+        self.resource = obj_or_import_string(
+            app.config["RELATED_RESOURCES_RESOURCE_CLASS"]
+        )(  # type: ignore[reportOptionalCall]
             obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CONFIG_CLASS"]),
             self.service,
         )

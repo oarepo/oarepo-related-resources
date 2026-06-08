@@ -18,7 +18,11 @@ from invenio_records_permissions import BasePermissionPolicy
 from invenio_records_permissions.generators import Disable
 from invenio_records_resources.services.errors import PermissionDeniedError
 
-from oarepo_related_resources.resolvers import CrossrefResolver, DataciteResolver, HandleResolver
+from oarepo_related_resources.resolvers import (
+    CrossrefResolver,
+    DataciteResolver,
+    HandleResolver,
+)
 
 if TYPE_CHECKING:
     from oarepo_related_resources.resolvers.base import ResolverProblem
@@ -57,28 +61,43 @@ def test_custom_policy_denies_authenticated_user(
     app, service, logged_client, users, monkeypatch, mock_http, zenodo_doi
 ):
     """A policy denying ``can_import_related`` for everyone → 403 even for a logged-in user."""
-    monkeypatch.setitem(app.config, "RELATED_RESOURCES_PERMISSION_POLICY", DenyAllPolicy)
+    monkeypatch.setitem(
+        app.config, "RELATED_RESOURCES_PERMISSION_POLICY", DenyAllPolicy
+    )
     with pytest.raises(PermissionDeniedError):
         service.import_related_resource(users[0].identity, zenodo_doi)
 
 
-def test_base_function(service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
+def test_base_function(
+    service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi
+):
     response = service.import_related_resource(users[0].identity, zenodo_doi)
     assert response.to_dict()["metadata"] == zenodo_imported_metadata
 
 
-def test_custom_schema(app, service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi):
-    monkeypatch.setitem(app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema)
+def test_custom_schema(
+    app, service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi
+):
+    monkeypatch.setitem(
+        app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema
+    )
     response = service.import_related_resource(users[0].identity, zenodo_doi)
-    assert response.to_dict()["metadata"]["persistent_url"] == "here should be persistent url"
+    assert (
+        response.to_dict()["metadata"]["persistent_url"]
+        == "here should be persistent url"
+    )
 
 
 def test_add_persistent_url_to_metadata(
     app, service, users, zenodo_imported_metadata, mock_http, monkeypatch, zenodo_doi
 ):
-    monkeypatch.setitem(app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema)
     monkeypatch.setitem(
-        app.config, "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS", CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS
+        app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema
+    )
+    monkeypatch.setitem(
+        app.config,
+        "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS",
+        CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS,
     )
     response = service.import_related_resource(users[0].identity, zenodo_doi)
     assert response.to_dict()["metadata"]["persistent_url"] == zenodo_doi

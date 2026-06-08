@@ -9,7 +9,11 @@
 
 from __future__ import annotations
 
-from oarepo_related_resources.resolvers import CrossrefResolver, DataciteResolver, HandleResolver
+from oarepo_related_resources.resolvers import (
+    CrossrefResolver,
+    DataciteResolver,
+    HandleResolver,
+)
 
 
 def test_datacite_resolver_builds_expected_upstream_url(app, zenodo_doi):

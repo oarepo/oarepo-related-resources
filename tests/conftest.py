@@ -139,7 +139,9 @@ class MockResponse:
         self.status_code = status_code
         self._payload = payload or {}
         self.content = content
-        self.text = text if text is not None else (content.decode("utf-8", errors="replace"))
+        self.text = (
+            text if text is not None else (content.decode("utf-8", errors="replace"))
+        )
 
     def json(self) -> dict:
         """Return the stored JSON payload."""
@@ -150,15 +152,24 @@ class MockResponse:
 def mock_http(monkeypatch, datacite_response, handle_response, crossref_response):
     """URL-keyed mock for ``requests.Session.get``."""
     routes: dict[str, MockResponse | BaseException] = {
-        "https://api.datacite.org/dois/10.5281/zenodo.19032692": MockResponse(payload=datacite_response),
-        "https://hdl.handle.net/11234/1-6144": MockResponse(content=handle_response.encode("utf-8")),
-        "https://api.crossref.org/works/doi/10.1575/1912/1099": MockResponse(payload=crossref_response),
+        "https://api.datacite.org/dois/10.5281/zenodo.19032692": MockResponse(
+            payload=datacite_response
+        ),
+        "https://hdl.handle.net/11234/1-6144": MockResponse(
+            content=handle_response.encode("utf-8")
+        ),
+        "https://api.crossref.org/works/doi/10.1575/1912/1099": MockResponse(
+            payload=crossref_response
+        ),
     }
 
     def _get(self, *args: Any, **kwargs: Any) -> MockResponse:
         url = kwargs.get("url") or (args[0] if args else None)
         if url not in routes:
-            return MockResponse(status_code=404, payload={"errors": [{"status": "404", "title": "Not found"}]})
+            return MockResponse(
+                status_code=404,
+                payload={"errors": [{"status": "404", "title": "Not found"}]},
+            )
         entry = routes[url]
         if isinstance(entry, BaseException):
             raise entry

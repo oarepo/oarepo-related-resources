@@ -26,14 +26,22 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def test_datacite_import(app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi):
-    response = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
+def test_datacite_import(
+    app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi
+):
+    response = logged_client(users[0]).post(
+        "/related-records", json={"identifier": zenodo_doi}
+    )
     assert response.json["metadata"] == zenodo_imported_metadata
     assert response.status_code == 200
 
 
-def test_datacite_import_errors(app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi):
-    response = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
+def test_datacite_import_errors(
+    app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi
+):
+    response = logged_client(users[0]).post(
+        "/related-records", json={"identifier": zenodo_doi}
+    )
     assert len(response.json["validation_errors"]) == 0
     assert len(response.json["import_errors"]) == 1
 
@@ -48,13 +56,19 @@ def test_datacite_import_normalized_identifier(
     assert response.status_code == 200
 
 
-def test_handle_import(app, logged_client, users, mock_http, handle_imported_metadata, handle):
-    response = logged_client(users[0]).post("/related-records", json={"identifier": handle})
+def test_handle_import(
+    app, logged_client, users, mock_http, handle_imported_metadata, handle
+):
+    response = logged_client(users[0]).post(
+        "/related-records", json={"identifier": handle}
+    )
     assert response.json["metadata"] == handle_imported_metadata
     assert response.status_code == 200
 
 
-def test_handle_import_normalized_identifier(app, logged_client, users, mock_http, handle_imported_metadata, handle):
+def test_handle_import_normalized_identifier(
+    app, logged_client, users, mock_http, handle_imported_metadata, handle
+):
     response = logged_client(users[0]).post(
         "/related-records", json={"identifier": handle[len("http://hdl.handle.net/") :]}
     )
@@ -62,8 +76,12 @@ def test_handle_import_normalized_identifier(app, logged_client, users, mock_htt
     assert response.status_code == 200
 
 
-def test_crossref_import(app, logged_client, users, mock_http, crossref_imported_metadata, crossref_doi):
-    response = logged_client(users[0]).post("/related-records", json={"identifier": crossref_doi})
+def test_crossref_import(
+    app, logged_client, users, mock_http, crossref_imported_metadata, crossref_doi
+):
+    response = logged_client(users[0]).post(
+        "/related-records", json={"identifier": crossref_doi}
+    )
     assert response.json["metadata"] == crossref_imported_metadata
     assert response.status_code == 200
 
@@ -84,15 +102,22 @@ def test_unathorized(app, client, mock_http, zenodo_doi):
 
 
 def test_invalid_identifier(app, logged_client, users, mock_http):
-    resp = logged_client(users[0]).post("/related-records", json={"identifier": "invalid"})
+    resp = logged_client(users[0]).post(
+        "/related-records", json={"identifier": "invalid"}
+    )
     assert resp.status_code == 404
     assert resp.json["message"] == "Unsupported identifier type 'invalid'."
 
 
 def test_nonexistent_doi(app, logged_client, users, mock_http, nonexistent_doi):
-    resp = logged_client(users[0]).post("/related-records", json={"identifier": nonexistent_doi})
+    resp = logged_client(users[0]).post(
+        "/related-records", json={"identifier": nonexistent_doi}
+    )
     assert resp.status_code == 404
-    assert resp.json["message"] == "Non-existent persistent identifier: 'https://doi.org/10.1234/x'."
+    assert (
+        resp.json["message"]
+        == "Non-existent persistent identifier: 'https://doi.org/10.1234/x'."
+    )
 
 
 def _alive_then(status_code: int, *, content: bytes = b"upstream error") -> Callable:
@@ -102,21 +127,31 @@ def _alive_then(status_code: int, *, content: bytes = b"upstream error") -> Call
         counter["n"] += 1
         if counter["n"] == 1:
             return MockResponse(payload={"data": {"attributes": {}}})
-        return MockResponse(status_code=status_code, content=content, text=content.decode())
+        return MockResponse(
+            status_code=status_code, content=content, text=content.decode()
+        )
 
     return _route
 
 
-def test_non_string_id_routed_through_pid_processing_error(app, logged_client, users, mock_http):
+def test_non_string_id_routed_through_pid_processing_error(
+    app, logged_client, users, mock_http
+):
     """An ``id`` of the wrong type currently produces a ``PIDProcessingError`` → 500, not a request-shape error."""
     resp = logged_client(users[0]).post("/related-records", json={"identifier": 42})
     assert resp.status_code == 500
     assert "Error while processing identifier" in resp.json["message"]
 
 
-def test_upstream_503_end_to_end_returns_503(app, logged_client, users, mock_http, zenodo_doi):
+def test_upstream_503_end_to_end_returns_503(
+    app, logged_client, users, mock_http, zenodo_doi
+):
     """``UpstreamFetchError`` reaches the HTTP layer with its ``error_code`` preserved."""
-    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692"] = _alive_then(503)
-    resp = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
+    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692"] = _alive_then(
+        503
+    )
+    resp = logged_client(users[0]).post(
+        "/related-records", json={"identifier": zenodo_doi}
+    )
     assert resp.status_code == 503
     assert resp.content_type.startswith("application/json")

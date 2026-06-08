@@ -50,8 +50,12 @@ class HandleResolver(MetadataResolver):
     resolves_identifier = staticmethod(lambda url: bool(is_handle(url)))
     normalize_identifier = staticmethod(normalize_handle)
 
-    not_found_message = _("The identifier looks like a Handle, but it was not found in the Handle registry.")
-    unexpected_error_message = _("Unexpected error while resolving the Handle. Please fill the metadata manually.")
+    not_found_message = _(
+        "The identifier looks like a Handle, but it was not found in the Handle registry."
+    )
+    unexpected_error_message = _(
+        "Unexpected error while resolving the Handle. Please fill the metadata manually."
+    )
 
     @override
     def _fetch_response_alive(self, status_code: int) -> bool:
@@ -75,9 +79,9 @@ class HandleResolver(MetadataResolver):
     @handle_errors(alert_user=True)
     def resolve_title(self) -> None:
         """Extract the main title from Handle HTML metadata."""
-        titles = self.metadata.xpath('//meta[@name="citation_title"]/@content') or self.metadata.xpath(
-            '//meta[@name="title"]/@content'
-        )
+        titles = self.metadata.xpath(
+            '//meta[@name="citation_title"]/@content'
+        ) or self.metadata.xpath('//meta[@name="title"]/@content')
         if titles:
             self.processed_metadata["title"] = titles[0]
 
@@ -90,9 +94,13 @@ class HandleResolver(MetadataResolver):
             # best guess from looking at LINDAT data
             if "," in creator:
                 family, given = split_personal_name(creator)
-                creator_list.append(build_person_or_org(name=creator, family=family, given=given))
+                creator_list.append(
+                    build_person_or_org(name=creator, family=family, given=given)
+                )
             else:
-                creator_list.append(build_person_or_org(name=creator, type_="organizational"))
+                creator_list.append(
+                    build_person_or_org(name=creator, type_="organizational")
+                )
 
         if creator_list:
             self.processed_metadata["creators"] = creator_list
@@ -117,7 +125,9 @@ class HandleResolver(MetadataResolver):
         """Set the resource type placeholder for Handle records."""
         # there are dataset related tags, dataset_creator, dataset_license, dataset_keyword ..
         # but they are used also on things that aren't datasets
-        self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+        self.processed_metadata["resource_type"] = {
+            "id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
+        }
 
     @handle_errors()
     def resolve_additional_descriptions(self) -> None:
@@ -143,15 +153,21 @@ class HandleResolver(MetadataResolver):
     def _parse_loose_date(self, date: str) -> str | None:
         """Parse a free-form date string, falling back to dateutil with a warning."""
         # 0000 is a special case happening a lot in LINDAT data that passes EDTF schema validation
-        if re.match(r"^\d{4}$", date) and not (MIN_YEAR < int(date) <= datetime.datetime.now(datetime.UTC).year):
-            self._add_problem(_("Invalid publication date format: %(date)s.", date=date))
+        if re.match(r"^\d{4}$", date) and not (
+            MIN_YEAR < int(date) <= datetime.datetime.now(datetime.UTC).year
+        ):
+            self._add_problem(
+                _("Invalid publication date format: %(date)s.", date=date)
+            )
             return None
         if validate_edtf(date) is None:
             return date
         try:
             parsed = dateutil.parser.parse(date, fuzzy=True)
         except ParserError:
-            self._add_problem(_("Invalid publication date format: %(date)s.", date=date))
+            self._add_problem(
+                _("Invalid publication date format: %(date)s.", date=date)
+            )
             return None
         self._add_problem(
             _(
