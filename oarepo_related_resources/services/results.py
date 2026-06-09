@@ -23,6 +23,47 @@ if TYPE_CHECKING:
     from oarepo_related_resources.services import RelatedResourcesService
 
 
+def _normalize_field(field: str) -> str:
+    """Return a field path with numeric list indexes replaced by '*'."""
+    parts = []
+
+    for part in field.split("."):
+        if part.isdigit():
+            parts.append("*")
+        else:
+            parts.append(part)
+
+    return ".".join(parts)
+
+
+def summarize_validation_errors(validation_errors: list[dict]) -> list:
+    """Group repeated validation errors into summary items."""
+    grouped: dict = {}
+
+    for error in validation_errors:
+        field = _normalize_field(error.get("field", ""))
+        messages = error.get("messages", [])
+        key = (field, tuple(messages))
+
+        grouped.setdefault(key, []).append(error)
+
+    result = []
+
+    for (field, messages), group in grouped.items():
+        if len(group) == 1:
+            result.append(group[0])
+        else:
+            result.append(
+                {
+                    "field": field,
+                    "messages": list(messages),
+                    "count": len(group),
+                }
+            )
+
+    return result
+
+
 class RelatedResourceItem(ServiceItemResult):  # add service, identity
     """Service result for a single related resource."""
 
@@ -47,5 +88,5 @@ class RelatedResourceItem(ServiceItemResult):  # add service, identity
         return {
             "metadata": self._metadata,
             "import_errors": [e.to_dict() for e in self._import_errors],
-            "validation_errors": self._validation_errors,
+            "validation_errors": summarize_validation_errors(self._validation_errors),
         }
