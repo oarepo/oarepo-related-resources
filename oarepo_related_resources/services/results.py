@@ -28,9 +28,7 @@ def _normalize_field(field: str) -> str:
     parts = []
 
     for part in field.split("."):
-        if part.isdigit():
-            parts.append("*")
-        else:
+        if not part.isdigit():
             parts.append(part)
 
     return ".".join(parts)
