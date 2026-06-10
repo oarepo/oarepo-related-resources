@@ -25,13 +25,7 @@ if TYPE_CHECKING:
 
 def _normalize_field(field: str) -> str:
     """Return a field path with numeric list indexes replaced by '*'."""
-    parts = []
-
-    for part in field.split("."):
-        if not part.isdigit():
-            parts.append(part)
-
-    return ".".join(parts)
+    return ".".join(part for part in field.split(".") if not part.isdigit())
 
 
 def summarize_validation_errors(validation_errors: list[dict]) -> list:
