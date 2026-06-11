@@ -18,7 +18,11 @@ from invenio_records_resources.services.base.service import Service
 from requests.exceptions import RetryError
 from urllib3.exceptions import MaxRetryError
 
-from oarepo_related_resources.errors import PIDDoesNotExistError, PIDProcessingError, UnsupportedPIDError
+from oarepo_related_resources.errors import (
+    PIDDoesNotExistError,
+    PIDProcessingError,
+    UnsupportedPIDError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator

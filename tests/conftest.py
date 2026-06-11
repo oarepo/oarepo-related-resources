@@ -158,7 +158,10 @@ def mock_http(monkeypatch, datacite_response, handle_response, crossref_response
     def _get(self, *args: Any, **kwargs: Any) -> MockResponse:
         url = kwargs.get("url") or (args[0] if args else None)
         if url not in routes:
-            return MockResponse(status_code=404, payload={"errors": [{"status": "404", "title": "Not found"}]})
+            return MockResponse(
+                status_code=404,
+                payload={"errors": [{"status": "404", "title": "Not found"}]},
+            )
         entry = routes[url]
         if isinstance(entry, BaseException):
             raise entry

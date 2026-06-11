@@ -56,8 +56,18 @@ class RelatedResourcesImportExtension:
             "RELATED_RESOURCES_RESOURCE_CONFIG_CLASS",
             config.RELATED_RESOURCES_RESOURCE_CONFIG_CLASS,
         )
-        app.config.setdefault("RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE", config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE)
-        app.config.setdefault("RELATED_RESOURCES_DEFAULT_TIMEOUT", config.RELATED_RESOURCES_DEFAULT_TIMEOUT)
+        app.config.setdefault(
+            "RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE",
+            config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE,
+        )
+        app.config.setdefault(
+            "RELATED_RESOURCES_DEFAULT_TIMEOUT",
+            config.RELATED_RESOURCES_DEFAULT_TIMEOUT,
+        )
+        app.config.setdefault(
+            "RELATED_RESOURCES_RECORD_UI_SCHEMA",
+            config.RELATED_RESOURCES_RECORD_UI_SCHEMA,
+        )
 
     def init_services(self, app: Flask) -> None:
         """Initialize the services for the extension."""
@@ -68,7 +78,7 @@ class RelatedResourcesImportExtension:
     def init_resources(self, app: Flask) -> None:
         """Instantiate the resource for the extension."""
         self.resource = obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CLASS"])(  # type: ignore[reportOptionalCall]
-            obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CONFIG_CLASS"]),
+            obj_or_import_string(app.config["RELATED_RESOURCES_RESOURCE_CONFIG_CLASS"]).build(app),  # type: ignore[reportOptionalMemberAccess]
             self.service,
         )
 

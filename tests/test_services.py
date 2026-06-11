@@ -18,7 +18,11 @@ from invenio_records_permissions import BasePermissionPolicy
 from invenio_records_permissions.generators import Disable
 from invenio_records_resources.services.errors import PermissionDeniedError
 
-from oarepo_related_resources.resolvers import CrossrefResolver, DataciteResolver, HandleResolver
+from oarepo_related_resources.resolvers import (
+    CrossrefResolver,
+    DataciteResolver,
+    HandleResolver,
+)
 
 if TYPE_CHECKING:
     from oarepo_related_resources.resolvers.base import ResolverProblem
@@ -78,7 +82,9 @@ def test_add_persistent_url_to_metadata(
 ):
     monkeypatch.setitem(app.config, "RELATED_RESOURCES_RECORD_SCHEMA", PersistentURLDumpingSchema)
     monkeypatch.setitem(
-        app.config, "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS", CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS
+        app.config,
+        "RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS",
+        CUSTOM_PERSISTENT_IDENTIFIER_RESOLVERS,
     )
     response = service.import_related_resource(users[0].identity, zenodo_doi)
     assert response.to_dict()["metadata"]["persistent_url"] == zenodo_doi

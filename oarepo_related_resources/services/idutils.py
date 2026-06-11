@@ -173,7 +173,9 @@ class ORCIDImporter:
             aws_secret_access_key=aws_secret_access_key,
         )
 
-    def orcid_to_names(self, orcid_response: etree._Element, parent: Any = None) -> dict:  # noqa: PLR0915, PLR0912, C901
+    def orcid_to_names(  # noqa: PLR0915, PLR0912, C901
+        self, orcid_response: etree._Element, parent: Any = None
+    ) -> dict:
         """Convert ORCID XML response to names vocabulary schema.
 
         Args:
