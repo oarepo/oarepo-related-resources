@@ -28,6 +28,7 @@ from .utils import (
     handle_errors,
     lookup_vocabulary_by_prop,
     lookup_vocabulary_by_prop_handle_multiple,
+    normalize_date,
     resolve_language,
     split_personal_name,
     vocabulary_entry_exists,
@@ -158,7 +159,7 @@ class DataciteResolver(DoiResolverBase):
         dates_list = []
         for d in self.metadata.get("dates", []):
             date_object: dict[str, Any] = {}
-            date = d.get("date")
+            date = normalize_date(d.get("date"))
             _type = d.get("dateType")
             # no duplicate values found in rdm fixtures
             # TODO: perhaps more effort to systematize missing vocabularies

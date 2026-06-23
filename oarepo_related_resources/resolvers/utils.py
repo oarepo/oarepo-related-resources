@@ -70,6 +70,18 @@ def build_person_or_org(  # noqa PLR0913
     return entry
 
 
+def normalize_date(value: Any) -> str | None:
+    """Normalize unsupported date formats."""
+    if not value:
+        return None
+
+    value = str(value)
+    if "T" in value:
+        return str(value.split("T", 1)[0])
+
+    return str(value)
+
+
 def resolve_language(language: str | None) -> str | None:
     """Map a 2/3-letter language code to its alpha-3 form, validated against the languages vocabulary."""
     if not language:
