@@ -186,9 +186,18 @@ class DataciteResolver(DoiResolverBase):
 
     @handle_errors()
     def resolve_publisher(self) -> None:
-        """Copy the ``publisher`` field from DataCite metadata when present."""
-        if self.metadata.get("publisher"):
-            self.processed_metadata["publisher"] = self.metadata.get("publisher")
+        """Copy the ``publisher`` field from DataCite metadata when present.
+
+        DataCite responses may contain the publisher either as a plain string or
+        as an object with a ``name`` property. Different repository instances
+        currently return different variants.
+        """
+        publisher = self.metadata.get("publisher")
+        if isinstance(publisher, dict):
+            publisher = publisher.get("name")
+
+        if isinstance(publisher, str) and publisher:
+            self.processed_metadata["publisher"] = publisher
 
     @handle_errors()
     def resolve_subjects(self) -> None:
