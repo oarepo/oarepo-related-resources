@@ -95,7 +95,7 @@ class CrossrefResolver(DoiResolverBase):
     @handle_errors()
     def resolve_publication_date(self) -> None:
         """Parse and validate publication date parts into an EDTF-compatible string."""
-        publication_date_parts = self.metadata.get("deposited", {}).get("date-parts")
+        publication_date_parts = self.metadata.get("published", {}).get("date-parts")
         if not publication_date_parts:
             return
         try:
