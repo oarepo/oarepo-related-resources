@@ -119,8 +119,7 @@ def crossref_imported_metadata():
             }
         ],
         "publication_date": "1940",
-        'publisher': 'Massachusetts Institute of Technology and Woods Hole '
-                     'Oceanographic Institution',
+        "publisher": "Massachusetts Institute of Technology and Woods Hole Oceanographic Institution",
         "resource_type": {"id": "dataset"},
         "title": "Observations of vertical humidity distribution above the ocean surface and their relation to "
         "evaporation",
