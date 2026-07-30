@@ -134,7 +134,7 @@ def resolve_identifiers(data: dict, uow: UnitOfWork | None = None) -> None:
                     )
 
 
-def resolve_identifier(  # noqa: PLR0913
+def resolve_identifier(  # noqa: PLR0913 PLR0917
     identifier: dict,
     parent: Any,
     path: str,
@@ -301,7 +301,7 @@ class ORCIDImporter:
 
         return result
 
-    def resolve(  # noqa: PLR0913
+    def resolve(  # noqa: PLR0913 PLR0917
         self,
         orcid: str,
         vocabulary: str,
@@ -358,7 +358,7 @@ class ORCIDImporter:
         return names_record
 
 
-def resolve_orcid(  # noqa: PLR0913
+def resolve_orcid(  # noqa: PLR0913 PLR0917
     orcid: str,
     vocabulary: str,
     parent: Any = None,
@@ -383,7 +383,7 @@ def resolve_orcid(  # noqa: PLR0913
     )
 
 
-def resolve_ror(  # noqa: PLR0913
+def resolve_ror(  # noqa: PLR0913 PLR0917
     ror: str,
     vocabulary: str,
     parent: Any = None,

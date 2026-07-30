@@ -58,6 +58,7 @@ class CrossrefResolver(DoiResolverBase):
     def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
         self.resolve_title()
         self.resolve_creators()
+        self.resolve_publisher()
         self.resolve_publication_date()
         self.resolve_resource_type()
         self.resolve_description()
@@ -93,9 +94,16 @@ class CrossrefResolver(DoiResolverBase):
             self.processed_metadata["creators"] = creator_list
 
     @handle_errors()
+    def resolve_publisher(self) -> None:
+        """Copy a string publisher from Crossref metadata when present."""
+        publisher = self.metadata.get("publisher")
+        if isinstance(publisher, str) and publisher:
+            self.processed_metadata["publisher"] = publisher
+
+    @handle_errors()
     def resolve_publication_date(self) -> None:
         """Parse and validate publication date parts into an EDTF-compatible string."""
-        publication_date_parts = self.metadata.get("deposited", {}).get("date-parts")
+        publication_date_parts = self.metadata.get("published", {}).get("date-parts")
         if not publication_date_parts:
             return
         try:
