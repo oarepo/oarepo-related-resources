@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, override
 
 from flask import current_app
 from invenio_i18n import lazy_gettext as _
-from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes
+from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes, record_personorg_schemes
 
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
@@ -401,14 +401,16 @@ class DataciteResolver(DoiResolverBase):
         seen = []
         for ni in name_identifiers or []:
             identifier = ni.get("nameIdentifier")
-            if identifier in seen:  # needs to be unique
-                continue
-            seen.append(identifier)
             scheme = ni.get("nameIdentifierScheme")
             if scheme:
                 scheme = scheme.lower()
             if not identifier or not scheme:
                 continue
+            if scheme not in record_personorg_schemes:
+                continue
+            if identifier in seen:  # needs to be unique
+                continue
+            seen.append(identifier)
             if scheme == "orcid":
                 try:
                     identifier_dict = resolve_orcid(
