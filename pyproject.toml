@@ -1,6 +1,6 @@
 [project]
 name = "oarepo-related-resources"
-version = "4.4.0"
+version = "5.0.0"
 description = "Related resource metadata import module extracted from NMA"
 readme = "README.md"
 license = "MIT"
@@ -8,7 +8,7 @@ authors = []
 dependencies = [
     "oarepo[rdm,s3]>=14.0.0,<15.0.0",
     "oarepo-runtime>=7.0.0,<8.0.0",
-    "oarepo-vocabularies>=9.0.0,<10.0.0",
+    "oarepo-vocabularies>=10.0.0,<11.0.0",
     "beautifulsoup4",
     "boto3",
     "langcodes",
