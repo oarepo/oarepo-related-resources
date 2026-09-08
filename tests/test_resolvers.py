@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
+from lxml import html
+
 import oarepo_related_resources.services as services
 from oarepo_related_resources.resolvers import (
     CrossrefResolver,
@@ -18,6 +20,7 @@ from oarepo_related_resources.resolvers import (
     HandleResolver,
 )
 from oarepo_related_resources.resolvers import datacite as datacite_module
+from oarepo_related_resources.resolvers import handle as handle_module
 
 
 def test_datacite_resolver_builds_expected_upstream_url(app, zenodo_doi):
@@ -186,3 +189,48 @@ def test_handle_resolver_builds_expected_upstream_url(app, handle):
         resolver._create_fetch_url(handle)  # noqa SLF001
         == "https://hdl.handle.net/11234/1-6144"
     )
+
+
+def test_handle_resolve_additional_descriptions(app, monkeypatch):
+    resolver = HandleResolver()
+    resolver.metadata = html.fromstring(
+        """
+        <html><head>
+          <meta name="DCTERMS.abstract" content="English abstract" xml:lang="en">
+          <meta name="DCTERMS.abstract" content="Abstract without language">
+        </head></html>
+        """
+    )
+    monkeypatch.setattr(handle_module, "resolve_language", Mock(side_effect=["eng", None]))
+
+    resolver.resolve_additional_descriptions()
+
+    assert resolver.processed_metadata == {
+        "additional_descriptions": [
+            {
+                "lang": {"id": "eng"},
+                "type": {"id": "abstract"},
+                "description": "English abstract",
+            },
+            {
+                "type": {"id": "abstract"},
+                "description": "Abstract without language",
+            },
+        ]
+    }
+
+
+def test_handle_parse_loose_date(app):
+    resolver = HandleResolver()
+
+    assert resolver._parse_loose_date("January 2, 2020") == "2020-01-02"  # noqa: SLF001
+    assert str(resolver.problems[0].message) == (
+        "Publication date format did not pass validation; format: January 2, 2020."
+    )
+
+
+def test_handle_rejects_invalid_date(app):
+    resolver = HandleResolver()
+
+    assert resolver._parse_loose_date("not a date") is None  # noqa: SLF001
+    assert str(resolver.problems[0].message) == "Invalid publication date format: not a date."
