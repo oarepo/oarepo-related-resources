@@ -34,6 +34,23 @@ def test_crossref_resolver_builds_expected_upstream_url(app, crossref_doi):
     )
 
 
+def test_crossref_resolve_description(app):
+    resolver = CrossrefResolver()
+    resolver.metadata = {
+        "abstract": """
+            <jats:title>Abstract</jats:title>
+            <jats:p>First paragraph with <jats:bold>bold text</jats:bold>.</jats:p>
+            <jats:p>Second paragraph.</jats:p>
+        """
+    }
+
+    resolver.resolve_description()
+
+    assert resolver.processed_metadata == {
+        "description": "First paragraph with bold text.\n\nSecond paragraph."
+    }
+
+
 def test_handle_resolver_builds_expected_upstream_url(app, handle):
     """`DATACITE_URL` + normalized DOI suffix produces the upstream API URL."""
     resolver = HandleResolver()
