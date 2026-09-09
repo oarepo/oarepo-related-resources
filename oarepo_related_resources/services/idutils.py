@@ -405,7 +405,7 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
         session: Session instance
 
     """
-    _ = parent
+    _parent = parent
     svc = cast("RecordService", current_service_registry.get(vocabulary))
     if check_existing:
         # note: maybe use just persistent identifier lookup here and return just an id

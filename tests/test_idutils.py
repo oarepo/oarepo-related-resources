@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pytest
 from botocore.exceptions import ClientError
 from flask import Flask
+from flask_babel import Babel
 from lxml import etree
 from marshmallow import ValidationError
 
@@ -246,6 +247,7 @@ def test_orcid_resolve(monkeypatch):
     importer.boto_client = boto_client
     monkeypatch.setattr(idutils, "current_service_registry", registry)
     app = Flask(__name__)
+    Babel(app)
     app.config["ORCID_PUBLIC_DUMP_S3_BUCKET_NAME"] = "orcid-dump"
 
     with app.app_context():
@@ -317,6 +319,7 @@ def test_resolve_ror_rejects_error_response(monkeypatch):
     session.get.return_value = Mock(status_code=404)
     monkeypatch.setattr(idutils, "current_service_registry", registry)
     app = Flask(__name__)
+    Babel(app)
     app.config["ROR_CLIENT_ID"] = "client-id"
 
     with app.app_context(), pytest.raises(ValidationError, match="ROR ID missing could not be resolved"):
