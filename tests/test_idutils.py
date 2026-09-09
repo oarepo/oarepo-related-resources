@@ -306,6 +306,7 @@ def test_orcid_resolve_missing_record(monkeypatch):
     registry.get.return_value = Mock()
     monkeypatch.setattr(idutils, "current_service_registry", registry)
     app = Flask(__name__)
+    Babel(app)
     app.config["ORCID_PUBLIC_DUMP_S3_BUCKET_NAME"] = "orcid-dump"
 
     with app.app_context(), pytest.raises(ValidationError, match="ORCID 0000-0004 could not be resolved"):
