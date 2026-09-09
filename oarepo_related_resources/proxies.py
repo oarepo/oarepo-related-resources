@@ -18,5 +18,5 @@ if TYPE_CHECKING:
 
 current_related_resources_import_extension = LocalProxy(
     lambda: current_app.extensions["related-resources-import-extension"]
-)  # type: ignore[assignment]
+)  # ty: ignore[invalid-assignment]
 current_orcid_importer = LocalProxy(lambda: current_related_resources_import_extension.orcid_importer)  # type: ignore[has-type]

@@ -77,7 +77,7 @@ class RelatedResourcesResourceConfig(ErrorHandlersMixin, ResourceConfig, Configu
             "application/vnd.inveniordm.v1+json": ResponseHandler(RelatedResourcesUIJSONSerializer(self.ui_schema)),
         }
 
-    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # type: ignore[reportIncompatibleVariableOverride] # ty: ignore[invalid-assignment]
+    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # ty: ignore[invalid-assignment, invalid-attribute-override]
         **ErrorHandlersMixin.error_handlers,
         PIDDoesNotExistError: create_error_handler(
             lambda e: HTTPJSONException(
