@@ -1,28 +1,19 @@
 # oarepo-related-resources
 
-A library for retrieving metadata from persistent identifiers (DOI/Handle) in Invenio/OARepo applications.
+A library for importing metadata from persistent identifiers (DOI and Handle)
+into Invenio/OARepo applications.
 
-## What It Does
+## What it does
 
-- detects whether a persistent identifier is supported,
-- uses resolvers to fetch metadata (title, creators, publication_date, resource_type, ...),
-- returns a normalized internal ID (`doi/...`, `handle/...`) and metadata,
-- provides an ORCID importer (`current_orcid_importer`).
+- supports DataCite, Crossref, and Handle resolvers,
+- fetches and normalizes metadata such as titles, creators, dates, descriptions,
+  and resource types,
+- reports non-fatal import problems together with the imported metadata,
+- provides an ORCID importer and ROR affiliation/funder resolution.
 
-## Installation
+## Registering the extension
 
-Add `oarepo-related-resources` as a dependency in your project.
-
-For local development (editable):
-
-```toml
-[tool.uv.sources]
-oarepo-related-resources = { path = "/path/to/oarepo-related-resources", editable = true }
-```
-
-## Registering the Extension
-
-In your application's `pyproject.toml`:
+Register the extension in the application's `pyproject.toml`:
 
 ```toml
 [project.entry-points."invenio_base.api_apps"]
@@ -32,47 +23,77 @@ related_resources_import_extension = "oarepo_related_resources.ext:RelatedResour
 related_resources_import_extension = "oarepo_related_resources.ext:RelatedResourcesImportExtension"
 ```
 
-## Configuration
+The extension registers the `/related-records` resource and the
+`current_orcid_importer` proxy.
 
-Default configuration is provided by `oarepo_related_resources.config`.
+## HTTP API
 
-Most important keys:
+The resource accepts an authenticated `POST` request at `/related-records`:
 
-- `PERSISTENT_IDENTIFIER_RESOLVERS`
-- `PERSISTENT_IDENTIFIER_PATTERNS`
-- `DATACITE_URL`
-- `CROSSREF_URL`
-- `HANDLE_URL`
-- `ORCID_PUBLIC_DUMP_S3_BUCKET_NAME`
-- `ORCID_AWS_ACCESS_KEY_ID`
-- `ORCID_AWS_SECRET_ACCESS_KEY`
-
-## Usage in Code
-
-### 1) Resolver registry (DOI/Handle -> metadata)
-
-```python
-from oarepo_related_resources.proxies import current_resolver_registry
-
-record_data, problems = current_resolver_registry.resolve("https://doi.org/10.1234/abcd")
-
-# record_data:
-# {
-#   "id": "doi/10.1234/abcd",
-#   "metadata": {
-#       "title": "...",
-#       "creators": [...],
-#       "publication_date": "...",
-#       "resource_type": {"id": "..."},
-#       "persistent_url": "https://doi.org/10.1234/abcd"
-#   }
-# }
+```json
+{
+  "identifier": "https://doi.org/10.5281/zenodo.19032692"
+}
 ```
 
-### 2) ORCID importer
+The identifier may also be supplied without its DOI or Handle URL prefix. A
+successful response contains normalized metadata and any non-fatal problems:
+
+```json
+{
+  "metadata": {
+    "title": "...",
+    "creators": [],
+    "publication_date": "...",
+    "resource_type": {"id": "..."}
+  },
+  "import_errors": [],
+  "validation_errors": []
+}
+```
+
+`import_errors` contains resolver problems. `validation_errors` contains errors
+from loading the resolved metadata into the configured record schema.
+
+Typical HTTP errors are:
+
+- `403` — the caller is not allowed to import related resources;
+- `404` — unsupported or non-existent identifier;
+- the upstream response status — an upstream resolver request failed;
+- `500` — an unexpected processing error.
+
+## Resolver problems
+
+Resolver methods return metadata together with a list of `ResolverProblem`
+objects. Each problem contains:
+
+```json
+{
+  "resolver": "DataCite",
+  "message": "...",
+  "level": "info",
+  "original_exception": null
+}
+```
+
+The available levels are `info`, `warning`, and `error`. These problems are
+non-fatal unless the resolver itself cannot produce a response. `error` level
+problems are also sent to the application logger; applications configured with
+Sentry/GlitchTip logging can report them there.
+
+## ORCID importer
+
+Use the extension proxy after the application has been initialized:
 
 ```python
 from oarepo_related_resources.proxies import current_orcid_importer
 
-person = current_orcid_importer.resolve("0000-0001-2345-6789", vocabulary="names")
+person = current_orcid_importer.resolve(
+    "0000-0001-2345-6789",
+    vocabulary="names",
+)
 ```
+
+The importer reads the configured ORCID public dump and can resolve ROR
+identifiers for affiliations and funders.
+

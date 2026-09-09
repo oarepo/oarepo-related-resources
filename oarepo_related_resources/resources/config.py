@@ -1,11 +1,5 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
 
 """Related Resources Resource Configuration."""
 
@@ -22,9 +16,8 @@ from flask_resources import (
 from flask_resources.parsers import BaseListSchema
 from flask_resources.serializers import JSONSerializer
 from flask_resources.serializers.base import MarshmallowSerializer
-from invenio_i18n import lazy_gettext as _
+from invenio_records_resources.resources.errors import ErrorHandlersMixin
 from invenio_records_resources.services.base.config import ConfiguratorMixin, FromConfig
-from invenio_records_resources.services.errors import PermissionDeniedError
 
 from oarepo_related_resources.errors import (
     PIDDoesNotExistError,
@@ -61,7 +54,7 @@ class RelatedResourcesUIJSONSerializer(MarshmallowSerializer):
         return data
 
 
-class RelatedResourcesResourceConfig(ResourceConfig, ConfiguratorMixin):
+class RelatedResourcesResourceConfig(ErrorHandlersMixin, ResourceConfig, ConfiguratorMixin):
     """Related Resources resource config."""
 
     # Blueprint configuration
@@ -84,7 +77,8 @@ class RelatedResourcesResourceConfig(ResourceConfig, ConfiguratorMixin):
             "application/vnd.inveniordm.v1+json": ResponseHandler(RelatedResourcesUIJSONSerializer(self.ui_schema)),
         }
 
-    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # type: ignore[reportIncompatibleVariableOverride]
+    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # ty: ignore[invalid-assignment, invalid-attribute-override]
+        **ErrorHandlersMixin.error_handlers,
         PIDDoesNotExistError: create_error_handler(
             lambda e: HTTPJSONException(
                 code=404,
@@ -105,14 +99,8 @@ class RelatedResourcesResourceConfig(ResourceConfig, ConfiguratorMixin):
         ),
         PIDProcessingError: create_error_handler(
             lambda e: HTTPJSONException(
-                code=500,  # ??
+                code=500,
                 description=str(e),
-            )
-        ),
-        PermissionDeniedError: create_error_handler(  # TODO: or import invenio ErrorHandlersMixin
-            HTTPJSONException(
-                code=403,
-                description=_("Permission denied."),
             )
         ),
     }
