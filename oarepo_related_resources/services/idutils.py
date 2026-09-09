@@ -13,8 +13,8 @@ from urllib.parse import quote
 import boto3
 from botocore.exceptions import ClientError
 from flask import current_app
-from flask_babel import gettext as _
 from invenio_access.permissions import system_identity
+from invenio_i18n import lazy_gettext as _
 from invenio_pidstore.errors import PersistentIdentifierError
 from invenio_records_resources.proxies import current_service_registry
 from invenio_vocabularies.contrib.common.ror.datastreams import RORTransformer
@@ -322,7 +322,7 @@ class ORCIDImporter:
 
         """
         # look up in the vocabulary service first
-        _ = session
+        _session = session
         svc = cast("RecordService", current_service_registry.get(vocabulary))
         if orcid.startswith("https://orcid.org/"):
             orcid = orcid.rsplit("https://orcid.org/", maxsplit=1)[-1]
@@ -344,7 +344,7 @@ class ORCIDImporter:
             xml_data = response["Body"].read()
         except ClientError as e:
             raise ValidationError(
-                _("ORCID %(orcid)s could not be resolved.", orcid=orcid),
+                str(_("ORCID %(orcid)s could not be resolved.", orcid=orcid)),
                 field_name=path,
             ) from e
 
@@ -422,7 +422,7 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
     resp = session.get(url, headers=headers)
     if resp.status_code != HTTP_OK:
         raise ValidationError(
-            _("ROR ID %(ror)s could not be resolved.", ror=ror),
+            str(_("ROR ID %(ror)s could not be resolved.", ror=ror)),
             field_name=path,
         )
     data = StreamEntry(entry=resp.json())
