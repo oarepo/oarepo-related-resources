@@ -1,11 +1,5 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
 
 from __future__ import annotations
 
@@ -26,10 +20,7 @@ from oarepo_related_resources.resolvers import handle as handle_module
 def test_datacite_resolver_builds_expected_upstream_url(app, zenodo_doi):
     """`DATACITE_URL` + normalized DOI suffix produces the upstream API URL."""
     resolver = DataciteResolver()
-    assert (
-        resolver._create_fetch_url(zenodo_doi)  # noqa SLF001
-        == "https://api.datacite.org/dois/10.5281/zenodo.19032692"
-    )
+    assert resolver._create_fetch_url(zenodo_doi) == "https://api.datacite.org/dois/10.5281/zenodo.19032692"
 
 
 def test_datacite_descriptions_and_subjects(app, monkeypatch):
@@ -135,7 +126,7 @@ def test_datacite_affiliations_and_name_identifiers(app, monkeypatch):
     monkeypatch.setattr(services, "resolve_orcid", Mock(return_value={"id": "0000-0001"}))
 
     assert (
-        resolver._resolve_datacite_affiliations(  # noqa: SLF001
+        resolver._resolve_datacite_affiliations(
             [
                 "Institute",
                 "Institute",
@@ -143,7 +134,7 @@ def test_datacite_affiliations_and_name_identifiers(app, monkeypatch):
                 {"name": "Named institute"},
             ]
         ),
-        resolver._resolve_datacite_name_identifiers(  # noqa: SLF001
+        resolver._resolve_datacite_name_identifiers(
             name_identifiers=[
                 {"nameIdentifier": "https://orcid.org/0000-0001", "nameIdentifierScheme": "ORCID"},
                 {"nameIdentifier": "https://orcid.org/0000-0001", "nameIdentifierScheme": "ORCID"},
@@ -159,10 +150,7 @@ def test_datacite_affiliations_and_name_identifiers(app, monkeypatch):
 def test_crossref_resolver_builds_expected_upstream_url(app, crossref_doi):
     """`DATACITE_URL` + normalized DOI suffix produces the upstream API URL."""
     resolver = CrossrefResolver()
-    assert (
-        resolver._create_fetch_url(crossref_doi)  # noqa SLF001
-        == "https://api.crossref.org/works/doi/10.1575/1912/1099"
-    )
+    assert resolver._create_fetch_url(crossref_doi) == "https://api.crossref.org/works/doi/10.1575/1912/1099"
 
 
 def test_crossref_resolve_description(app):
@@ -177,18 +165,13 @@ def test_crossref_resolve_description(app):
 
     resolver.resolve_description()
 
-    assert resolver.processed_metadata == {
-        "description": "First paragraph with bold text.\n\nSecond paragraph."
-    }
+    assert resolver.processed_metadata == {"description": "First paragraph with bold text.\n\nSecond paragraph."}
 
 
 def test_handle_resolver_builds_expected_upstream_url(app, handle):
     """`DATACITE_URL` + normalized DOI suffix produces the upstream API URL."""
     resolver = HandleResolver()
-    assert (
-        resolver._create_fetch_url(handle)  # noqa SLF001
-        == "https://hdl.handle.net/11234/1-6144"
-    )
+    assert resolver._create_fetch_url(handle) == "https://hdl.handle.net/11234/1-6144"
 
 
 def test_handle_resolve_additional_descriptions(app, monkeypatch):
@@ -223,7 +206,7 @@ def test_handle_resolve_additional_descriptions(app, monkeypatch):
 def test_handle_parse_loose_date(app):
     resolver = HandleResolver()
 
-    assert resolver._parse_loose_date("January 2, 2020") == "2020-01-02"  # noqa: SLF001
+    assert resolver._parse_loose_date("January 2, 2020") == "2020-01-02"
     assert str(resolver.problems[0].message) == (
         "Publication date format did not pass validation; format: January 2, 2020."
     )
@@ -232,5 +215,5 @@ def test_handle_parse_loose_date(app):
 def test_handle_rejects_invalid_date(app):
     resolver = HandleResolver()
 
-    assert resolver._parse_loose_date("not a date") is None  # noqa: SLF001
+    assert resolver._parse_loose_date("not a date") is None
     assert str(resolver.problems[0].message) == "Invalid publication date format: not a date."

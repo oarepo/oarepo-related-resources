@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources DataCite DOI resolver."""
 
 from __future__ import annotations
@@ -21,6 +16,7 @@ from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
     ResolverProblem,
+    ResolverProblemLevel,
 )
 from .utils import (
     build_person_or_org,
@@ -84,12 +80,22 @@ class DataciteResolver(DoiResolverBase):
             if description and isinstance(_type, str) and _type != "Abstract" and isinstance(description, str):
                 d_type = re.sub(r"(?<!^)([A-Z])", r"-\1", _type).lower()
                 if not vocabulary_entry_exists("descriptiontypes", d_type):
+                    self._add_problem(
+                        _("The description type '%(type)s' could not be mapped, so the description was omitted.")
+                        % {"type": d_type},
+                        level=ResolverProblemLevel.INFO,
+                    )
                     continue
                 description_obj: dict[str, Any] = {}
                 description_obj["type"] = {"id": d_type}
                 description_obj["description"] = description
                 d_lang = d.get("lang")
                 if not isinstance(d_lang, str):
+                    self._add_problem(
+                        _("The language '%(type)s' could not be mapped, so the description was omitted.")
+                        % {"type": d_lang},
+                        level=ResolverProblemLevel.INFO,
+                    )
                     continue
                 lang = resolve_language(d_lang)
                 if lang:
@@ -129,6 +135,11 @@ class DataciteResolver(DoiResolverBase):
             obj = {"identifier": identifier, "scheme": scheme}
             resolved_rel_type = lookup_vocabulary_by_prop("relationtypes", rel_type)
             if resolved_rel_type is None:  # no duplicate values found in rdm fixtures
+                self._add_problem(
+                    _("The relation type '%(type)s' could not be mapped, so the related identifier was omitted.")
+                    % {"type": rel_type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             obj["relation_type"] = {"id": resolved_rel_type}
 
@@ -161,11 +172,12 @@ class DataciteResolver(DoiResolverBase):
             date_object: dict[str, Any] = {}
             date = normalize_date(d.get("date"))
             _type = d.get("dateType")
-            # no duplicate values found in rdm fixtures
-            # TODO: perhaps more effort to systematize missing vocabularies
-            #  (eg. it logs error but does not return it user here)
             resolved_datatype = lookup_vocabulary_by_prop("datetypes", _type)
             if resolved_datatype is None:
+                self._add_problem(
+                    _("The date type '%(type)s' could not be mapped, so the date was omitted.") % {"type": _type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             date_object["date"] = str(date)
             date_object["type"] = {"id": resolved_datatype}
@@ -236,6 +248,11 @@ class DataciteResolver(DoiResolverBase):
                 continue
             resolved_type = lookup_vocabulary_by_prop("titletypes", t_type)  # no duplicate values found in rdm fixtures
             if resolved_type is None:
+                self._add_problem(
+                    _("The title '%(type)s' could not be mapped, so the additional title was omitted.")
+                    % {"type": t_type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             t_lang = None
             title_obj["title"] = title.get("title")

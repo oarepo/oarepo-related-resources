@@ -1,12 +1,9 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Tests for related resource identifier utilities."""
+
+from __future__ import annotations
 
 from unittest.mock import Mock
 
@@ -15,8 +12,6 @@ from botocore.exceptions import ClientError
 from flask import Flask
 from lxml import etree
 from marshmallow import ValidationError
-
-from invenio_vocabularies.datastreams.datastreams import StreamEntry
 
 from oarepo_related_resources.services import idutils
 
@@ -50,9 +45,7 @@ def test_create_vocabulary_item(monkeypatch):
     registry.get.return_value = service
     monkeypatch.setattr(idutils, "current_service_registry", registry)
 
-    assert (
-        idutils.create_vocabulary_item("names", {"id": "existing"}),
-    ) == (
+    assert (idutils.create_vocabulary_item("names", {"id": "existing"}),) == (
         {"id": "existing", "title": "Already there"},
     )
 
@@ -277,9 +270,7 @@ def test_orcid_resolve(monkeypatch):
 def test_orcid_resolve_without_creation(monkeypatch):
     xml = b'<record xmlns:common="http://www.orcid.org/ns/common"/>'
     importer = object.__new__(idutils.ORCIDImporter)
-    importer.boto_client = Mock(
-        get_object=Mock(return_value={"Body": Mock(read=Mock(return_value=xml))})
-    )
+    importer.boto_client = Mock(get_object=Mock(return_value={"Body": Mock(read=Mock(return_value=xml))}))
     registry = Mock()
     registry.get.return_value = Mock()
     monkeypatch.setattr(idutils, "current_service_registry", registry)
