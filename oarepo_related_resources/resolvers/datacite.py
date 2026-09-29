@@ -9,8 +9,10 @@ import re
 from typing import TYPE_CHECKING, Any, override
 
 from flask import current_app
+from invenio_access.permissions import system_identity
 from invenio_i18n import lazy_gettext as _
 from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes, record_personorg_schemes
+from invenio_records_resources.proxies import current_service_registry
 
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
@@ -191,8 +193,17 @@ class DataciteResolver(DoiResolverBase):
         rights_list = []
         for r in self.metadata.get("rightsList", []):
             code = r.get("rightsIdentifier")
-            if code and vocabulary_entry_exists("licenses", code):
-                rights_list.append({"id": code})
+            if not code:
+                continue
+            if not vocabulary_entry_exists("licenses", code):
+                # SPDX ids are lowercase in the vocabulary, while DataCite
+                # commonly emits mixed/upper case (e.g. "CC-BY-4.0")
+                lowered = code.lower()
+                if lowered != code and vocabulary_entry_exists("licenses", lowered):
+                    code = lowered
+                else:
+                    continue
+            rights_list.append({"id": code})
         if rights_list:
             self.processed_metadata["rights"] = rights_list
 
@@ -306,7 +317,7 @@ class DataciteResolver(DoiResolverBase):
         if escaped == "Image":
             self.processed_metadata["resource_type"] = {"id": "image"}
             return
-        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped.lower())
+        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped, prop="datacite_general")
         if not resolved_type:
             self._add_problem(
                 _("The provided resource type %s could not be parsed. The default value %s has been applied.")
@@ -365,21 +376,29 @@ class DataciteResolver(DoiResolverBase):
                 affiliations_list.append({"name": a})
             elif isinstance(a, dict):
                 a_scheme = a.get("affiliationIdentifierScheme")
+                name = a.get("name")
                 if a_scheme == "ROR":
                     a_identifier = a.get("affiliationIdentifier")
-                    if not a_identifier or a_identifier in seen:
-                        continue
-                    affiliations_list.append({"id": a_identifier})
-                    seen.add(a_identifier)
-                else:
-                    name = a.get("name")
-                    if not name or not isinstance(name, str):
-                        continue
-                    if name in seen:
-                        continue
-                    seen.add(name)
+                    if isinstance(a_identifier, str):
+                        ror_id = a_identifier.rstrip("/").rsplit("/", 1)[-1]
+                        if ror_id in seen:
+                            continue
+                        try:
+                            affiliations_service = current_service_registry.get("affiliations")
+                            affiliations_service.read(system_identity, ror_id)
+                        except Exception:
+                            name = a.get("name") or a_identifier
+                        else:
+                            affiliations_list.append({"id": ror_id})
+                            seen.add(ror_id)
+                            continue
+                if not name or not isinstance(name, str):
+                    continue
+                if name in seen:
+                    continue
+                seen.add(name)
 
-                    affiliations_list.append({"name": name})
+                affiliations_list.append({"name": name})
 
         return affiliations_list
 
@@ -449,3 +468,8 @@ class DataciteResolver(DoiResolverBase):
             obj["scheme"] = scheme
             identifiers.append(obj)
         return identifiers
+
+    @override
+    def _create_fetch_url(self, identifier: str) -> str:
+        """Build the resolver's API URL for `identifier`."""
+        return f"{current_app.config[self.fetch_url_config_key]}/{self.normalize_identifier(identifier)}?affiliation=true"
