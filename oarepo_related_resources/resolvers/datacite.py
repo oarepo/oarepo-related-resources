@@ -179,8 +179,17 @@ class DataciteResolver(DoiResolverBase):
         rights_list = []
         for r in self.metadata.get("rightsList", []):
             code = r.get("rightsIdentifier")
-            if code and vocabulary_entry_exists("licenses", code):
-                rights_list.append({"id": code})
+            if not code:
+                continue
+            if not vocabulary_entry_exists("licenses", code):
+                # SPDX ids are lowercase in the vocabulary, while DataCite
+                # commonly emits mixed/upper case (e.g. "CC-BY-4.0")
+                lowered = code.lower()
+                if lowered != code and vocabulary_entry_exists("licenses", lowered):
+                    code = lowered
+                else:
+                    continue
+            rights_list.append({"id": code})
         if rights_list:
             self.processed_metadata["rights"] = rights_list
 
@@ -289,7 +298,7 @@ class DataciteResolver(DoiResolverBase):
         if escaped == "Image":
             self.processed_metadata["resource_type"] = {"id": "image"}
             return
-        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped.lower())
+        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped, prop="datacite_general")
         if not resolved_type:
             self._add_problem(
                 _("The provided resource type %s could not be parsed. The default value %s has been applied.")
