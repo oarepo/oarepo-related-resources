@@ -363,7 +363,7 @@ class DataciteResolver(DoiResolverBase):
             self.processed_metadata["version"] = val
 
     @handle_errors()
-    def _resolve_datacite_affiliations(self, affiliations: list | None) -> list:
+    def _resolve_datacite_affiliations(self, affiliations: list | None) -> list:  # noqa: C901
         """Extract and normalize affiliation entries while removing duplicates."""
         affiliations_list = []
         seen = set()
@@ -385,8 +385,8 @@ class DataciteResolver(DoiResolverBase):
                             continue
                         try:
                             affiliations_service = current_service_registry.get("affiliations")
-                            affiliations_service.read(system_identity, ror_id)
-                        except Exception:
+                            affiliations_service.read(system_identity, ror_id)  # ty: ignore[unresolved-attribute]
+                        except Exception:  # noqa: BLE001
                             name = a.get("name") or a_identifier
                         else:
                             affiliations_list.append({"id": ror_id})
@@ -472,4 +472,6 @@ class DataciteResolver(DoiResolverBase):
     @override
     def _create_fetch_url(self, identifier: str) -> str:
         """Build the resolver's API URL for `identifier`."""
-        return f"{current_app.config[self.fetch_url_config_key]}/{self.normalize_identifier(identifier)}?affiliation=true"
+        return (
+            f"{current_app.config[self.fetch_url_config_key]}/{self.normalize_identifier(identifier)}?affiliation=true"
+        )

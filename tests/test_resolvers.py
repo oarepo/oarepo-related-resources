@@ -20,7 +20,10 @@ from oarepo_related_resources.resolvers import handle as handle_module
 def test_datacite_resolver_builds_expected_upstream_url(app, zenodo_doi):
     """`DATACITE_URL` + normalized DOI suffix produces the upstream API URL."""
     resolver = DataciteResolver()
-    assert resolver._create_fetch_url(zenodo_doi) == "https://api.datacite.org/dois/10.5281/zenodo.19032692?affiliation=true"
+    assert (
+        resolver._create_fetch_url(zenodo_doi)
+        == "https://api.datacite.org/dois/10.5281/zenodo.19032692?affiliation=true"
+    )
 
 
 def test_datacite_descriptions_and_subjects(app, monkeypatch):
