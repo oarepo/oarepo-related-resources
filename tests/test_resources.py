@@ -111,7 +111,7 @@ def test_non_string_id_routed_through_pid_processing_error(app, logged_client, u
 
 def test_upstream_503_end_to_end_returns_503(app, logged_client, users, mock_http, zenodo_doi):
     """``UpstreamFetchError`` reaches the HTTP layer with its ``error_code`` preserved."""
-    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692"] = _alive_then(503)
+    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692?affiliation=true"] = _alive_then(503)
     resp = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
     assert resp.status_code == 503
     assert resp.content_type.startswith("application/json")
