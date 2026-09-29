@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources Crossref DOI resolver."""
 
 from __future__ import annotations
@@ -119,7 +114,6 @@ class CrossrefResolver(DoiResolverBase):
             return
         self.processed_metadata["publication_date"] = publication_date
 
-    # TODO: type is in crossref response?
     @handle_errors()
     def resolve_resource_type(self) -> None:
         """Set the resource type placeholder for Crossref records."""

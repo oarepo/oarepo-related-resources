@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources id utils."""
 
 from __future__ import annotations
@@ -19,6 +14,7 @@ import boto3
 from botocore.exceptions import ClientError
 from flask import current_app
 from invenio_access.permissions import system_identity
+from invenio_i18n import lazy_gettext as _
 from invenio_pidstore.errors import PersistentIdentifierError
 from invenio_records_resources.proxies import current_service_registry
 from invenio_vocabularies.contrib.common.ror.datastreams import RORTransformer
@@ -326,7 +322,7 @@ class ORCIDImporter:
 
         """
         # look up in the vocabulary service first
-        _ = session
+        _session = session
         svc = cast("RecordService", current_service_registry.get(vocabulary))
         if orcid.startswith("https://orcid.org/"):
             orcid = orcid.rsplit("https://orcid.org/", maxsplit=1)[-1]
@@ -347,7 +343,10 @@ class ORCIDImporter:
 
             xml_data = response["Body"].read()
         except ClientError as e:
-            raise ValidationError(f"ORCID {orcid} could not be resolved.", field_name=path) from e
+            raise ValidationError(
+                str(_("ORCID %(orcid)s could not be resolved.", orcid=orcid)),
+                field_name=path,
+            ) from e
 
         xml_el = etree.fromstring(xml_data)
 
@@ -406,7 +405,7 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
         session: Session instance
 
     """
-    _ = parent
+    _parent = parent
     svc = cast("RecordService", current_service_registry.get(vocabulary))
     if check_existing:
         # note: maybe use just persistent identifier lookup here and return just an id
@@ -422,7 +421,10 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
     url = f"https://api.ror.org/v2/organizations/{quote(ror)}"
     resp = session.get(url, headers=headers)
     if resp.status_code != HTTP_OK:
-        raise ValidationError(f"ROR ID {ror} could not be resolved.", field_name=path)
+        raise ValidationError(
+            str(_("ROR ID %(ror)s could not be resolved.", ror=ror)),
+            field_name=path,
+        )
     data = StreamEntry(entry=resp.json())
     transformer = RORTransformer(
         vocab_schemes={"affiliations": "ror", "funders": "ror"},

@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources DataCite DOI resolver."""
 
 from __future__ import annotations
@@ -14,13 +9,16 @@ import re
 from typing import TYPE_CHECKING, Any, override
 
 from flask import current_app
+from invenio_access.permissions import system_identity
 from invenio_i18n import lazy_gettext as _
 from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes, record_personorg_schemes
+from invenio_records_resources.proxies import current_service_registry
 
 from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
     ResolverProblem,
+    ResolverProblemLevel,
 )
 from .utils import (
     build_person_or_org,
@@ -84,12 +82,22 @@ class DataciteResolver(DoiResolverBase):
             if description and isinstance(_type, str) and _type != "Abstract" and isinstance(description, str):
                 d_type = re.sub(r"(?<!^)([A-Z])", r"-\1", _type).lower()
                 if not vocabulary_entry_exists("descriptiontypes", d_type):
+                    self._add_problem(
+                        _("The description type '%(type)s' could not be mapped, so the description was omitted.")
+                        % {"type": d_type},
+                        level=ResolverProblemLevel.INFO,
+                    )
                     continue
                 description_obj: dict[str, Any] = {}
                 description_obj["type"] = {"id": d_type}
                 description_obj["description"] = description
                 d_lang = d.get("lang")
                 if not isinstance(d_lang, str):
+                    self._add_problem(
+                        _("The language '%(type)s' could not be mapped, so the description was omitted.")
+                        % {"type": d_lang},
+                        level=ResolverProblemLevel.INFO,
+                    )
                     continue
                 lang = resolve_language(d_lang)
                 if lang:
@@ -129,6 +137,11 @@ class DataciteResolver(DoiResolverBase):
             obj = {"identifier": identifier, "scheme": scheme}
             resolved_rel_type = lookup_vocabulary_by_prop("relationtypes", rel_type)
             if resolved_rel_type is None:  # no duplicate values found in rdm fixtures
+                self._add_problem(
+                    _("The relation type '%(type)s' could not be mapped, so the related identifier was omitted.")
+                    % {"type": rel_type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             obj["relation_type"] = {"id": resolved_rel_type}
 
@@ -161,11 +174,12 @@ class DataciteResolver(DoiResolverBase):
             date_object: dict[str, Any] = {}
             date = normalize_date(d.get("date"))
             _type = d.get("dateType")
-            # no duplicate values found in rdm fixtures
-            # TODO: perhaps more effort to systematize missing vocabularies
-            #  (eg. it logs error but does not return it user here)
             resolved_datatype = lookup_vocabulary_by_prop("datetypes", _type)
             if resolved_datatype is None:
+                self._add_problem(
+                    _("The date type '%(type)s' could not be mapped, so the date was omitted.") % {"type": _type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             date_object["date"] = str(date)
             date_object["type"] = {"id": resolved_datatype}
@@ -179,8 +193,17 @@ class DataciteResolver(DoiResolverBase):
         rights_list = []
         for r in self.metadata.get("rightsList", []):
             code = r.get("rightsIdentifier")
-            if code and vocabulary_entry_exists("licenses", code):
-                rights_list.append({"id": code})
+            if not code:
+                continue
+            if not vocabulary_entry_exists("licenses", code):
+                # SPDX ids are lowercase in the vocabulary, while DataCite
+                # commonly emits mixed/upper case (e.g. "CC-BY-4.0")
+                lowered = code.lower()
+                if lowered != code and vocabulary_entry_exists("licenses", lowered):
+                    code = lowered
+                else:
+                    continue
+            rights_list.append({"id": code})
         if rights_list:
             self.processed_metadata["rights"] = rights_list
 
@@ -236,6 +259,11 @@ class DataciteResolver(DoiResolverBase):
                 continue
             resolved_type = lookup_vocabulary_by_prop("titletypes", t_type)  # no duplicate values found in rdm fixtures
             if resolved_type is None:
+                self._add_problem(
+                    _("The title '%(type)s' could not be mapped, so the additional title was omitted.")
+                    % {"type": t_type},
+                    level=ResolverProblemLevel.INFO,
+                )
                 continue
             t_lang = None
             title_obj["title"] = title.get("title")
@@ -289,7 +317,7 @@ class DataciteResolver(DoiResolverBase):
         if escaped == "Image":
             self.processed_metadata["resource_type"] = {"id": "image"}
             return
-        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped.lower())
+        resolved_type = lookup_vocabulary_by_prop_handle_multiple(vocabulary_id, escaped, prop="datacite_general")
         if not resolved_type:
             self._add_problem(
                 _("The provided resource type %s could not be parsed. The default value %s has been applied.")
@@ -335,7 +363,7 @@ class DataciteResolver(DoiResolverBase):
             self.processed_metadata["version"] = val
 
     @handle_errors()
-    def _resolve_datacite_affiliations(self, affiliations: list | None) -> list:
+    def _resolve_datacite_affiliations(self, affiliations: list | None) -> list:  # noqa: C901
         """Extract and normalize affiliation entries while removing duplicates."""
         affiliations_list = []
         seen = set()
@@ -348,21 +376,29 @@ class DataciteResolver(DoiResolverBase):
                 affiliations_list.append({"name": a})
             elif isinstance(a, dict):
                 a_scheme = a.get("affiliationIdentifierScheme")
+                name = a.get("name")
                 if a_scheme == "ROR":
                     a_identifier = a.get("affiliationIdentifier")
-                    if not a_identifier or a_identifier in seen:
-                        continue
-                    affiliations_list.append({"id": a_identifier})
-                    seen.add(a_identifier)
-                else:
-                    name = a.get("name")
-                    if not name or not isinstance(name, str):
-                        continue
-                    if name in seen:
-                        continue
-                    seen.add(name)
+                    if isinstance(a_identifier, str):
+                        ror_id = a_identifier.rstrip("/").rsplit("/", 1)[-1]
+                        if ror_id in seen:
+                            continue
+                        try:
+                            affiliations_service = current_service_registry.get("affiliations")
+                            affiliations_service.read(system_identity, ror_id)  # ty: ignore[unresolved-attribute]
+                        except Exception:  # noqa: BLE001
+                            name = a.get("name") or a_identifier
+                        else:
+                            affiliations_list.append({"id": ror_id})
+                            seen.add(ror_id)
+                            continue
+                if not name or not isinstance(name, str):
+                    continue
+                if name in seen:
+                    continue
+                seen.add(name)
 
-                    affiliations_list.append({"name": name})
+                affiliations_list.append({"name": name})
 
         return affiliations_list
 
@@ -432,3 +468,10 @@ class DataciteResolver(DoiResolverBase):
             obj["scheme"] = scheme
             identifiers.append(obj)
         return identifiers
+
+    @override
+    def _create_fetch_url(self, identifier: str) -> str:
+        """Build the resolver's API URL for `identifier`."""
+        return (
+            f"{current_app.config[self.fetch_url_config_key]}/{self.normalize_identifier(identifier)}?affiliation=true"
+        )
