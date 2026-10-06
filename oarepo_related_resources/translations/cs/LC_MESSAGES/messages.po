@@ -1,0 +1,166 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"POT-Creation-Date: 2026-09-09 13:07+0200\n"
+"PO-Revision-Date: 2026-09-09 13:07+0200\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: cs\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Poedit 3.5\n"
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/errors.py:23
+#, python-format
+msgid "Non-existent persistent identifier: '%(identifier)s'."
+msgstr "Neexistující persistentní identifikátor: „%(identifier)s“."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/errors.py:40
+#, python-format
+msgid "Unsupported identifier type '%(identifier)s'."
+msgstr "Nepodporovaný typ identifikátoru „%(identifier)s“."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/errors.py:51
+#, python-format
+msgid "Error while processing identifier '%(identifier)s'."
+msgstr "Chyba při zpracování identifikátoru „%(identifier)s“."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/errors.py:65
+#, python-format
+msgid ""
+"%(message)s; url - '%(url)s', error code - '%(error_code)s', content - "
+"'%(content)s'."
+msgstr ""
+"%(message)s; URL - „%(url)s“, kód chyby - „%(error_code)s“, obsah - "
+"„%(content)s“."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/base.py:78
+msgid "Identifier was not found in the registry."
+msgstr "Identifikátor nebyl v registru nalezen."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/base.py:82
+msgid ""
+"Unexpected error while resolving the identifier. Please fill the metadata "
+"manually."
+msgstr ""
+"Neočekávaná chyba při překladu identifikátoru. Vyplňte metadata ručně."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/crossref.py:45
+msgid ""
+"The identifier looks like a DOI, but it was not found in the CrossRef "
+"registry."
+msgstr "Identifikátor vypadá jako DOI, ale nebyl nalezen v registru CrossRef."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/crossref.py:46
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:43
+msgid ""
+"Unexpected error while resolving the DOI. Please fill the metadata manually."
+msgstr "Neočekávaná chyba při dohledávání DOI. Vyplňte metadata ručně."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/crossref.py:111
+#, python-format
+msgid "Invalid publication date-parts format: %s."
+msgstr "Neplatný formát částí data publikace: %s."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:42
+msgid ""
+"The identifier looks like a DOI, but it was not found in the DataCite "
+"registry."
+msgstr "Identifikátor vypadá jako DOI, ale nebyl nalezen v registru DataCite."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:84
+#, python-format
+msgid ""
+"The description type '%(type)s' could not be mapped, so the description was "
+"omitted."
+msgstr ""
+"Typ popisu „%(type)s“ se nepodařilo namapovat, proto bylo pole description "
+"vynecháno."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:95
+#, python-format
+msgid ""
+"The language '%(type)s' could not be mapped, so the description was omitted."
+msgstr ""
+"Jazyk „%(type)s“ se nepodařilo namapovat, proto bylo pole description "
+"vynecháno."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:139
+#, python-format
+msgid ""
+"The relation type '%(type)s' could not be mapped, so the related identifier "
+"was omitted."
+msgstr ""
+"Typ vztahu „%(type)s“ se nepodařilo namapovat, proto bylo pole related "
+"identifier vynecháno."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:178
+#, python-format
+msgid "The date type '%(type)s' could not be mapped, so the date was omitted."
+msgstr ""
+"Typ data „%(type)s“ se nepodařilo namapovat, proto bylo datum vynecháno."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:252
+#, python-format
+msgid ""
+"The title '%(type)s' could not be mapped, so the additional title was "
+"omitted."
+msgstr ""
+"Typ názvu „%(type)s“ se nepodařilo namapovat, proto bylo pole additional "
+"title vynecháno."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:312
+#, python-format
+msgid ""
+"The provided resource type %s could not be parsed. The default value %s has "
+"been applied."
+msgstr ""
+"Zadaný typ zdroje %s se nepodařilo zpracovat. Byla použita výchozí hodnota "
+"%s."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/datacite.py:393
+#, python-format
+msgid "Missing %ss name: %s."
+msgstr "Chybí jméno %ss: %s."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/handle.py:48
+msgid ""
+"The identifier looks like a Handle, but it was not found in the Handle "
+"registry."
+msgstr ""
+"Identifikátor vypadá jako Handle, ale nebyl nalezen v registru Handle."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/handle.py:49
+msgid ""
+"Unexpected error while resolving the Handle. Please fill the metadata "
+"manually."
+msgstr ""
+"Neočekávaná chyba při dohledávání identifikátoru Handle. Vyplňte metadata "
+"ručně."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/handle.py:142
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/handle.py:149
+#, python-format
+msgid "Invalid publication date format: %(date)s."
+msgstr "Neplatný formát data publikace: %(date)s."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/handle.py:153
+#, python-format
+msgid "Publication date format did not pass validation; format: %(date)s."
+msgstr "Formát data publikace neprošel validací: %(date)s."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/resolvers/utils.py:228
+msgid "Unexpected error while parsing the metadata."
+msgstr "Neočekávaná chyba při zpracování metadat."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/services/idutils.py:347
+#, python-format
+msgid "ORCID %(orcid)s could not be resolved."
+msgstr "ORCID %(orcid)s se nepodařilo dohledat."
+
+#: /Users/alzbetapokorna/cesnet/2026/refaktor14/oarepo-related-resources/oarepo_related_resources/services/idutils.py:425
+#, python-format
+msgid "ROR ID %(ror)s could not be resolved."
+msgstr "ROR ID %(ror)s se nepodařilo dohledat."

@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Conftest."""
 
 from __future__ import annotations
@@ -151,7 +146,9 @@ class MockResponse:
 def mock_http(monkeypatch, datacite_response, handle_response, crossref_response):
     """URL-keyed mock for ``requests.Session.get``."""
     routes: dict[str, MockResponse | BaseException] = {
-        "https://api.datacite.org/dois/10.5281/zenodo.19032692": MockResponse(payload=datacite_response),
+        "https://api.datacite.org/dois/10.5281/zenodo.19032692?affiliation=true": MockResponse(
+            payload=datacite_response
+        ),
         "https://hdl.handle.net/11234/1-6144": MockResponse(content=handle_response.encode("utf-8")),
         "https://api.crossref.org/works/doi/10.1575/1912/1099": MockResponse(payload=crossref_response),
     }

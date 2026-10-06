@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Tests for ``RelatedResourcesResource``.
 
 These tests exercise the HTTP resource end-to-end against Flask's test
@@ -35,7 +30,7 @@ def test_datacite_import(app, logged_client, users, mock_http, zenodo_imported_m
 def test_datacite_import_errors(app, logged_client, users, mock_http, zenodo_imported_metadata, zenodo_doi):
     response = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
     assert len(response.json["validation_errors"]) == 0
-    assert len(response.json["import_errors"]) == 1
+    assert len(response.json["import_errors"]) == 4
 
 
 def test_datacite_import_normalized_identifier(
@@ -116,7 +111,7 @@ def test_non_string_id_routed_through_pid_processing_error(app, logged_client, u
 
 def test_upstream_503_end_to_end_returns_503(app, logged_client, users, mock_http, zenodo_doi):
     """``UpstreamFetchError`` reaches the HTTP layer with its ``error_code`` preserved."""
-    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692"] = _alive_then(503)
+    mock_http["https://api.datacite.org/dois/10.5281/zenodo.19032692?affiliation=true"] = _alive_then(503)
     resp = logged_client(users[0]).post("/related-records", json={"identifier": zenodo_doi})
     assert resp.status_code == 503
     assert resp.content_type.startswith("application/json")

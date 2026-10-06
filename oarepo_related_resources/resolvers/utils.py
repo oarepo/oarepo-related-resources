@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources resolvers utils."""
 
 from __future__ import annotations
@@ -112,7 +107,7 @@ def vocabulary_entry_exists(vocabulary_id: str, key: str) -> bool:
     the entry matters. Any exception is logged and yields False.
     """
     try:
-        vocabulary_service.read(system_identity, (vocabulary_id, key))  # type: ignore[arg-type]
+        vocabulary_service.read(system_identity, (vocabulary_id, key))  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     except Exception:
         current_app.logger.exception(
             "Record '%s' was not found in the '%s' vocabulary.",
@@ -132,7 +127,7 @@ def search_vocabulary_by_prop(
     """Return vocabulary search hits matching ``props.<prop>:"value"``."""
     escaped = escape_lucene(value)
     try:
-        VocabularyType.query.filter_by(id=vocabulary_id).one()  # type: ignore[reportAttributeAccessIssue]
+        VocabularyType.query.filter_by(id=vocabulary_id).one()  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
     except NoResultFound:
         current_app.logger.exception(
             "Error searching for '%s' in vocabulary of type '%s', the vocabulary type not resolvable.",

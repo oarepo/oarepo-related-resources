@@ -1,11 +1,6 @@
-#
-# Copyright (c) 2026 CESNET z.s.p.o.
-#
-# This file is a part of oarepo-related-resources (see https://github.com/oarepo/oarepo-related-resources).
-#
-# oarepo-related-resources is free software; you can redistribute it and/or modify it
-# under the terms of the MIT License; see LICENSE file for more details.
-#
+# SPDX-FileCopyrightText: 2026 CESNET z.s.p.o
+# SPDX-License-Identifier: MIT
+
 """Related resources base resolver class."""
 
 from __future__ import annotations
@@ -65,10 +60,6 @@ class ResolverProblem:
         }
 
 
-# TODO: if level is error -> generate glitchtip issue
-# by logger.error(... resolver problem ...)
-
-
 class MetadataResolver(ABC):
     """Metadata resolver abstract base class."""
 
@@ -122,14 +113,20 @@ class MetadataResolver(ABC):
         exc: Exception | None = None,
     ) -> None:
         """Append a ResolverProblem to ``problems`` carrying this resolver's provider."""
-        self.problems.append(
-            ResolverProblem(
-                resolver=self.provider,
-                message=str(message),
-                level=level,
-                original_exception=exc,
-            )
+        problem = ResolverProblem(
+            resolver=self.provider,
+            message=str(message),
+            level=level,
+            original_exception=exc,
         )
+        self.problems.append(problem)
+        if level == ResolverProblemLevel.ERROR:
+            current_app.logger.error(
+                "Resolver problem: resolver=%s, message=%s",
+                problem.resolver,
+                problem.message,
+                exc_info=exc,
+            )
 
     def _fetch_response_alive(self, status_code: int) -> bool:
         """Return True if the identifier API response ``status_code`` indicates the PID is live."""
