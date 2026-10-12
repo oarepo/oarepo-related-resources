@@ -107,7 +107,7 @@ def vocabulary_entry_exists(vocabulary_id: str, key: str) -> bool:
     the entry matters. Any exception is logged and yields False.
     """
     try:
-        vocabulary_service.read(system_identity, (vocabulary_id, key))  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+        vocabulary_service.read(system_identity, (vocabulary_id, key))  # type: ignore[arg-type]
     except Exception:
         current_app.logger.exception(
             "Record '%s' was not found in the '%s' vocabulary.",

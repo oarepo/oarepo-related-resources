@@ -8,9 +8,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, override
 
 from defusedxml.ElementTree import fromstring
+from flask import current_app
 from invenio_i18n import lazy_gettext as _
 
-from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
     ResolverProblem,
@@ -117,7 +117,7 @@ class CrossrefResolver(DoiResolverBase):
     @handle_errors()
     def resolve_resource_type(self) -> None:
         """Set the resource type placeholder for Crossref records."""
-        self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+        self.processed_metadata["resource_type"] = {"id": current_app.config["RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE"]}
 
     @handle_errors()
     def resolve_description(self) -> None:

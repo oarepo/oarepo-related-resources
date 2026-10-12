@@ -14,7 +14,6 @@ from invenio_i18n import lazy_gettext as _
 from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes, record_personorg_schemes
 from invenio_records_resources.proxies import current_service_registry
 
-from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     DoiResolverBase,
     ResolverProblem,
@@ -321,9 +320,11 @@ class DataciteResolver(DoiResolverBase):
         if not resolved_type:
             self._add_problem(
                 _("The provided resource type %s could not be parsed. The default value %s has been applied.")
-                % (_type, RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE),
+                % (_type, current_app.config["RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE"]),
             )
-            self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+            self.processed_metadata["resource_type"] = {
+                "id": current_app.config["RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE"]
+            }
             return
         self.processed_metadata["resource_type"] = {"id": resolved_type}
 

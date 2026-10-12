@@ -70,7 +70,7 @@ class RelatedResourcesResourceConfig(ErrorHandlersMixin, ResourceConfig, Configu
     )
 
     @property
-    def response_handlers(self) -> Mapping[str, ResponseHandler]:  # pyright: ignore[reportIncompatibleVariableOverride]
+    def response_handlers(self) -> Mapping[str, ResponseHandler]:  # ty: ignore[invalid-property-type-override]
         """Response handlers."""
         return {
             "application/json": ResponseHandler(JSONSerializer()),

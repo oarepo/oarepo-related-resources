@@ -34,7 +34,7 @@ class RelatedResourcesServiceConfig(ConfiguratorMixin, ServiceConfig):
     """Default service config for the related resources service."""
 
     service_id = "related-resources"
-    permission_policy_cls = FromConfig(  # type: ignore[reportAssignmentType]
+    permission_policy_cls = FromConfig(  # ty: ignore[invalid-assignment]
         "RELATED_RESOURCES_PERMISSION_POLICY",
         default=RelatedResourcesPermissionPolicy,
         import_string=True,

@@ -5,18 +5,18 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 import re
 from typing import TYPE_CHECKING, Any, override
 
 import dateutil  # type: ignore[import-untyped]
 from dateutil.parser import ParserError  # type: ignore[import-untyped]
+from flask import current_app
 from idutils.normalizers import normalize_handle
 from idutils.validators import is_handle
 from invenio_i18n import lazy_gettext as _
 from lxml import html
 
-from ..config import RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE
 from .base import (
     MetadataResolver,
     ResolverProblem,
@@ -112,7 +112,7 @@ class HandleResolver(MetadataResolver):
         """Set the resource type placeholder for Handle records."""
         # there are dataset related tags, dataset_creator, dataset_license, dataset_keyword ..
         # but they are used also on things that aren't datasets
-        self.processed_metadata["resource_type"] = {"id": RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE}
+        self.processed_metadata["resource_type"] = {"id": current_app.config["RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE"]}
 
     @handle_errors()
     def resolve_additional_descriptions(self) -> None:
@@ -138,7 +138,7 @@ class HandleResolver(MetadataResolver):
     def _parse_loose_date(self, date: str) -> str | None:
         """Parse a free-form date string, falling back to dateutil with a warning."""
         # 0000 is a special case happening a lot in LINDAT data that passes EDTF schema validation
-        if re.match(r"^\d{4}$", date) and not (MIN_YEAR < int(date) <= datetime.datetime.now(datetime.UTC).year):
+        if re.match(r"^\d{4}$", date) and not (MIN_YEAR < int(date) <= dt.datetime.now(dt.UTC).year):
             self._add_problem(_("Invalid publication date format: %(date)s.", date=date))
             return None
         if validate_edtf(date) is None:
@@ -154,4 +154,4 @@ class HandleResolver(MetadataResolver):
                 date=date,
             ),
         )
-        return datetime.datetime.strftime(parsed, "%Y-%m-%d")
+        return dt.datetime.strftime(parsed, "%Y-%m-%d")
