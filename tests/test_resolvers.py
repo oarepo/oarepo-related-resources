@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock
 
+import pytest
 from lxml import html
 
 import oarepo_related_resources.services as services
@@ -220,3 +221,72 @@ def test_handle_rejects_invalid_date(app):
 
     assert resolver._parse_loose_date("not a date") is None
     assert str(resolver.problems[0].message) == "Invalid publication date format: not a date."
+
+
+@pytest.mark.parametrize(
+    ("titles", "title"),
+    [
+        # DataCite REST API sends the titleType of the main title as null
+        ([{"title": "Main", "titleType": None}, {"title": "Alt", "titleType": "AlternativeTitle"}], "Main"),
+        # no main title - the first title is used
+        ([{"title": None}, {"title": "Alt", "titleType": "AlternativeTitle"}], "Alt"),
+    ],
+)
+def test_datacite_title(app, monkeypatch, titles, title):
+    resolver = DataciteResolver()
+    resolver.metadata = {"titles": titles}
+    monkeypatch.setattr(datacite_module, "lookup_vocabulary_by_prop", Mock(return_value="alternative-title"))
+
+    resolver.resolve_title()
+    resolver.resolve_additional_titles()
+
+    assert resolver.processed_metadata["title"] == title
+    # a title is never repeated in the additional titles
+    assert title not in [t["title"] for t in resolver.processed_metadata.get("additional_titles", [])]
+
+
+def test_datacite_additional_title_without_value_is_omitted(app, monkeypatch):
+    resolver = DataciteResolver()
+    resolver.metadata = {"titles": [{"title": "Main"}, {"title": None, "titleType": "AlternativeTitle"}]}
+    monkeypatch.setattr(datacite_module, "lookup_vocabulary_by_prop", Mock(return_value="alternative-title"))
+
+    resolver.resolve_title()
+    resolver.resolve_additional_titles()
+
+    assert "additional_titles" not in resolver.processed_metadata
+
+
+def test_datacite_invalid_values_are_omitted(app, monkeypatch):
+    """Values the record schema would reject are dropped, the rest of the record is kept."""
+    resolver = DataciteResolver()
+    resolver.metadata = {
+        "relatedIdentifiers": [
+            {"relationType": "IsCitedBy", "relatedIdentifierType": "DOI"},
+            {"relationType": "References", "relatedIdentifier": ["10.1234/a"], "relatedIdentifierType": "DOI"},
+            {"relationType": "References", "relatedIdentifier": "10.1234/valid", "relatedIdentifierType": "DOI"},
+        ],
+        "dates": [{"date": "", "dateType": "Issued"}, {"date": "2020-01-31", "dateType": "Issued"}],
+        "identifiers": [
+            {"identifier": "CEH:EIDC:#1406898956642", "identifierType": "URN"},
+            {"identifier": "urn:nbn:cz:123", "identifierType": "URN"},
+        ],
+    }
+    monkeypatch.setattr(
+        datacite_module, "lookup_vocabulary_by_prop", Mock(side_effect=lambda _vocab, value: value.lower())
+    )
+    monkeypatch.setattr(datacite_module, "lookup_vocabulary_by_prop_handle_multiple", Mock(return_value=None))
+
+    resolver.resolve_related_identifiers()
+    resolver.resolve_dates()
+    resolver.resolve_identifiers()
+
+    assert resolver.processed_metadata == {
+        "related_identifiers": [
+            {"identifier": "10.1234/valid", "scheme": "doi", "relation_type": {"id": "references"}},
+        ],
+        "dates": [{"date": "2020-01-31", "type": {"id": "issued"}}],
+        "identifiers": [{"identifier": "urn:nbn:cz:123", "scheme": "urn"}],
+    }
+    # dropped values are reported, but not as errors
+    assert len(resolver.problems) == 4
+    assert {p.level for p in resolver.problems} == {datacite_module.ResolverProblemLevel.INFO}

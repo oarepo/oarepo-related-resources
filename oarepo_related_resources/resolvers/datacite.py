@@ -11,8 +11,15 @@ from typing import TYPE_CHECKING, Any, override
 from flask import current_app
 from invenio_access.permissions import system_identity
 from invenio_i18n import lazy_gettext as _
-from invenio_rdm_records.services.schemas.metadata import record_identifiers_schemes, record_personorg_schemes
+from invenio_rdm_records.services.schemas.metadata import (
+    record_identifiers_schemes,
+    record_personorg_schemes,
+    record_related_identifiers_schemes,
+)
 from invenio_records_resources.proxies import current_service_registry
+from marshmallow import ValidationError
+from marshmallow_utils.fields import EDTFDateTimeString
+from marshmallow_utils.schemas import IdentifierSchema
 
 from .base import (
     DoiResolverBase,
@@ -33,6 +40,29 @@ from .utils import (
 
 if TYPE_CHECKING:
     from requests import Response
+
+
+def _is_valid_identifier(identifier: Any, scheme: str, schemes: Any) -> bool:
+    """Check the identifier the same way as the record schema does."""
+    try:
+        IdentifierSchema(allowed_schemes=schemes).load({"identifier": identifier, "scheme": scheme})
+    except ValidationError:
+        return False
+    return True
+
+
+def _is_valid_date(date: str | None) -> bool:
+    """Check the date the same way as the record schema does."""
+    try:
+        EDTFDateTimeString().deserialize(date)
+    except ValidationError:
+        return False
+    return True
+
+
+def _non_empty_str(value: Any) -> str | None:
+    """Return the value if it is a non-empty string - source records may contain nulls or other types."""
+    return value if isinstance(value, str) and value.strip() else None
 
 
 class DataciteResolver(DoiResolverBase):
@@ -128,11 +158,16 @@ class DataciteResolver(DoiResolverBase):
         """Resolve and validate related identifiers and their relation types."""
         result = []
         for rel in self.metadata.get("relatedIdentifiers", []):
-            identifier = rel.get("relatedIdentifier")
-            scheme = rel.get("relatedIdentifierType")
+            identifier = _non_empty_str(rel.get("relatedIdentifier"))
+            scheme = (_non_empty_str(rel.get("relatedIdentifierType")) or "").lower()
             rel_type = rel.get("relationType")
-            if scheme:
-                scheme = scheme.lower()
+            if not identifier or not _is_valid_identifier(identifier, scheme, record_related_identifiers_schemes):
+                self._add_problem(
+                    _("The related identifier '%(identifier)s' is not valid, so it was omitted.")
+                    % {"identifier": identifier},
+                    level=ResolverProblemLevel.INFO,
+                )
+                continue
             obj = {"identifier": identifier, "scheme": scheme}
             resolved_rel_type = lookup_vocabulary_by_prop("relationtypes", rel_type)
             if resolved_rel_type is None:  # no duplicate values found in rdm fixtures
@@ -172,6 +207,12 @@ class DataciteResolver(DoiResolverBase):
         for d in self.metadata.get("dates", []):
             date_object: dict[str, Any] = {}
             date = normalize_date(d.get("date"))
+            if not _is_valid_date(date):
+                self._add_problem(
+                    _("The date '%(date)s' is not valid, so it was omitted.") % {"date": d.get("date")},
+                    level=ResolverProblemLevel.INFO,
+                )
+                continue
             _type = d.get("dateType")
             resolved_datatype = lookup_vocabulary_by_prop("datetypes", _type)
             if resolved_datatype is None:
@@ -243,9 +284,12 @@ class DataciteResolver(DoiResolverBase):
     @handle_errors(alert_user=True)
     def resolve_title(self) -> None:
         """Extract the main title from DataCite metadata and validate its length."""
-        titles = [t["title"] for t in self.metadata.get("titles", []) if "title" in t and "titleType" not in t]
-        if titles:
-            self.processed_metadata["title"] = titles[0]
+        titles = [t for t in self.metadata.get("titles", []) if _non_empty_str(t.get("title"))]
+        # the main title has no titleType - the key is missing or null;
+        # without one, take the first title of any type so that the record has a title
+        main = next((t for t in titles if not t.get("titleType")), titles[0] if titles else None)
+        if main:
+            self.processed_metadata["title"] = main["title"]
 
     @handle_errors()
     def resolve_additional_titles(self) -> None:
@@ -254,7 +298,10 @@ class DataciteResolver(DoiResolverBase):
         for title in self.metadata.get("titles", []):
             title_obj = {}
             t_type = title.get("titleType")
-            if t_type is None:  # it is main title
+            if not t_type or title.get("title") == self.processed_metadata.get("title"):
+                # the main title (or another title taken as the main one)
+                continue
+            if not _non_empty_str(title.get("title")):
                 continue
             resolved_type = lookup_vocabulary_by_prop("titletypes", t_type)  # no duplicate values found in rdm fixtures
             if resolved_type is None:
@@ -331,14 +378,20 @@ class DataciteResolver(DoiResolverBase):
     @handle_errors()
     def resolve_identifiers(self) -> None:
         """Resolve and map identifiers from DataCite metadata."""
-        identifiers = [
-            {
-                "identifier": id_with_scheme["identifier"],
-                "scheme": id_with_scheme["identifierType"].lower(),
-            }
-            for id_with_scheme in self.metadata.get("identifiers", [])
-            if id_with_scheme["identifierType"].lower() in record_identifiers_schemes
-        ]
+        identifiers = []
+        for id_with_scheme in self.metadata.get("identifiers", []):
+            identifier = _non_empty_str(id_with_scheme.get("identifier"))
+            scheme = (_non_empty_str(id_with_scheme.get("identifierType")) or "").lower()
+            if scheme not in record_identifiers_schemes:
+                continue
+            if not identifier or not _is_valid_identifier(identifier, scheme, record_identifiers_schemes):
+                self._add_problem(
+                    _("The identifier '%(identifier)s' is not a valid %(scheme)s, so it was omitted.")
+                    % {"identifier": identifier, "scheme": scheme},
+                    level=ResolverProblemLevel.INFO,
+                )
+                continue
+            identifiers.append({"identifier": identifier, "scheme": scheme})
         if identifiers:
             self.processed_metadata["identifiers"] = identifiers
 
