@@ -1,6 +1,6 @@
 [project]
 name = "oarepo-related-resources"
-version = "5.1.2"
+version = "5.1.3"
 description = "Related resource metadata import module extracted from NMA"
 readme = "README.md"
 license = "MIT"
