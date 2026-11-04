@@ -21,7 +21,9 @@ RELATED_RESOURCES_RESOURCE_CONFIG_CLASS = "oarepo_related_resources.resources.Re
 try:
     importlib.metadata.version("ccmm-invenio")
     RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "dataset"
-    RELATED_RESOURCES_RECORD_UI_SCHEMA = "ccmm_invenio.serializers.related_resources_ui.CCMMRelatedResourceUISchema"
+    RELATED_RESOURCES_RECORD_UI_SCHEMA = (
+        "ccmm_invenio.resources.serializers.ui.related_resources.CCMMRelatedResourceUISchema"
+    )
 except importlib.metadata.PackageNotFoundError:
     RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "dataset"
     RELATED_RESOURCES_RECORD_UI_SCHEMA = "invenio_rdm_records.resources.serializers.ui.UIRecordSchema"
