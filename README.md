@@ -26,6 +26,53 @@ related_resources_import_extension = "oarepo_related_resources.ext:RelatedResour
 The extension registers the `/related-records` resource and the
 `current_orcid_importer` proxy.
 
+## Metadata mapping
+
+The resolvers only fetch the metadata of an identifier; mapping it to record
+metadata belongs to the model. Each resolver reads its mapper from
+`RELATED_RESOURCES_<PROVIDER>_MAPPER` - a callable (or its import string)
+`(metadata) -> (record metadata, list[ResolverProblem])`:
+
+| Resolver | Config | The mapper gets |
+|---|---|---|
+| DataCite | `RELATED_RESOURCES_DATACITE_MAPPER` | the DataCite attributes object (`data.attributes` of the REST API) |
+| Crossref | `RELATED_RESOURCES_CROSSREF_MAPPER` | the Crossref work (`message` of the REST API) |
+| Handle | `RELATED_RESOURCES_HANDLE_MAPPER` | the `<head>` of the landing page (an lxml `HtmlElement`) |
+
+ccmm-invenio sets all three to its CCMM mappings. Without a mapper, resolving an
+identifier of that resolver fails with a `RuntimeError` naming the variable - set it,
+or remove the resolver from `RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS`.
+
+To write a mapper, subclass `oarepo_related_resources.resolvers.ResolverMapping`: set
+`provider`, fill `processed_metadata` in `resolve_metadata` and report what can not be
+mapped with `_add_problem`. Decorate the partial `resolve_*` methods with
+`oarepo_related_resources.resolvers.utils.handle_errors`, so that one failing value does
+not lose the whole record. The same module has model-independent helpers for the
+mapping (vocabulary lookups, `split_personal_name`, `normalize_date`, `validate_edtf`,
+`escape_lucene`, …); building the record shape (e.g. the RDM `person_or_org`) is the
+mapper's job. For example:
+
+```python
+from oarepo_related_resources.resolvers import ResolverMapping
+from oarepo_related_resources.resolvers.utils import handle_errors
+
+
+class CrossrefMapping(ResolverMapping):
+    provider = "Crossref"
+
+    def resolve_metadata(self):
+        self.resolve_title()
+        return self.processed_metadata, self.problems
+
+    @handle_errors(alert_user=True)
+    def resolve_title(self):
+        self.processed_metadata["title"] = self.metadata["title"][0]
+
+
+def map_crossref(work):  # RELATED_RESOURCES_CROSSREF_MAPPER = "my_model.mappings:map_crossref"
+    return CrossrefMapping(work).resolve_metadata()
+```
+
 ## HTTP API
 
 The resource accepts an authenticated `POST` request at `/related-records`:
