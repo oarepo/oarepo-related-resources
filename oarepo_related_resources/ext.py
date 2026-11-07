@@ -51,10 +51,6 @@ class RelatedResourcesImportExtension:
             config.RELATED_RESOURCES_RESOURCE_CONFIG_CLASS,
         )
         app.config.setdefault(
-            "RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE",
-            config.RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE,
-        )
-        app.config.setdefault(
             "RELATED_RESOURCES_DEFAULT_TIMEOUT",
             config.RELATED_RESOURCES_DEFAULT_TIMEOUT,
         )

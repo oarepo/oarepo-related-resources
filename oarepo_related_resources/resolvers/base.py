@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from flask import current_app
 from idutils.normalizers import normalize_doi
 from idutils.validators import is_doi
+from invenio_base.utils import obj_or_import_string
 from invenio_i18n import lazy_gettext as _
 
 from oarepo_related_resources.errors import UpstreamFetchError
@@ -60,11 +61,44 @@ class ResolverProblem:
         }
 
 
-class MetadataResolver(ABC):
-    """Metadata resolver abstract base class."""
+class ProblemReporter:
+    """Collects the ResolverProblems of a resolver or of a mapping of its metadata.
+
+    The ``self`` of ``oarepo_related_resources.resolvers.utils.handle_errors``.
+    """
 
     provider: str
     """Registry/API that resolves the identifier (e.g. ``"Datacite"``, ``"Crossref"``, ``"Handle"``)."""
+
+    problems: list[ResolverProblem]
+    """The problems reported so far."""
+
+    def _add_problem(
+        self,
+        message: Any,
+        *,
+        level: ResolverProblemLevel = ResolverProblemLevel.WARNING,
+        exc: Exception | None = None,
+    ) -> None:
+        """Append a ResolverProblem to ``problems`` carrying this ``provider``."""
+        problem = ResolverProblem(
+            resolver=self.provider,
+            message=str(message),
+            level=level,
+            original_exception=exc,
+        )
+        self.problems.append(problem)
+        if level == ResolverProblemLevel.ERROR:
+            current_app.logger.error(
+                "Resolver problem: resolver=%s, message=%s",
+                problem.resolver,
+                problem.message,
+                exc_info=exc,
+            )
+
+
+class MetadataResolver(ProblemReporter, ABC):
+    """Metadata resolver abstract base class."""
 
     scheme_url: str
 
@@ -102,31 +136,8 @@ class MetadataResolver(ABC):
         self.session = create_session_with_retries(
             total_retries=4,
         )
-        self.problems: list[ResolverProblem] = []
+        self.problems = []
         self.processed_metadata: dict[str, Any] = {}
-
-    def _add_problem(
-        self,
-        message: Any,
-        *,
-        level: ResolverProblemLevel = ResolverProblemLevel.WARNING,
-        exc: Exception | None = None,
-    ) -> None:
-        """Append a ResolverProblem to ``problems`` carrying this resolver's provider."""
-        problem = ResolverProblem(
-            resolver=self.provider,
-            message=str(message),
-            level=level,
-            original_exception=exc,
-        )
-        self.problems.append(problem)
-        if level == ResolverProblemLevel.ERROR:
-            current_app.logger.error(
-                "Resolver problem: resolver=%s, message=%s",
-                problem.resolver,
-                problem.message,
-                exc_info=exc,
-            )
 
     def _fetch_response_alive(self, status_code: int) -> bool:
         """Return True if the identifier API response ``status_code`` indicates the PID is live."""
@@ -176,10 +187,27 @@ class MetadataResolver(ABC):
         """Extract raw metadata from the resolver's API response."""
         raise NotImplementedError
 
-    @abstractmethod
+    @property
+    def mapper_config_key(self) -> str:
+        """Flask config key of the mapper of the resolver's metadata (e.g. ``RELATED_RESOURCES_DATACITE_MAPPER``)."""
+        return f"RELATED_RESOURCES_{self.provider.upper()}_MAPPER"
+
     def resolve_metadata(self) -> tuple[dict[str, Any], list[ResolverProblem]]:
-        """Map the resolver's metadata from identifier API response to the expected format."""
-        raise NotImplementedError
+        """Map the resolver's metadata (see get_metadata) to the record metadata with the configured mapper.
+
+        The mapping belongs to the model (the record shape is the model's), so it is configured with
+        ``mapper_config_key`` - a callable (or its import string) ``(metadata) -> (record metadata, problems)``.
+        """
+        mapper = current_app.config.get(self.mapper_config_key)
+        if not mapper:
+            raise RuntimeError(
+                f"{self.mapper_config_key} is not set: configure the {self.provider} to record metadata mapping "
+                "of your model, or remove the resolver from RELATED_RESOURCES_PERSISTENT_IDENTIFIER_RESOLVERS."
+            )
+        metadata, problems = obj_or_import_string(mapper)(self.metadata)  # type: ignore[misc]
+        self.processed_metadata = metadata
+        self.problems.extend(problems)
+        return self.processed_metadata, self.problems
 
     def resolve(self, identifier: str) -> tuple[dict[str, Any], list[ResolverProblem]]:
         """Resolve metadata by identifier.

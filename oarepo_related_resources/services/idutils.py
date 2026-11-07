@@ -25,8 +25,6 @@ from opensearchpy.exceptions import OpenSearchException
 from sqlalchemy.exc import NoResultFound
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
-
     import requests
     from invenio_db.uow import UnitOfWork
     from invenio_records_resources.services.records import RecordService
@@ -76,86 +74,6 @@ def get_object(data: dict | None, key: str) -> Any:
 
     """
     return get_with_default(data, key, {})
-
-
-def dict_lookup_with_arrays(data: dict, path: str) -> Generator[tuple[Any, Any, str]]:
-    """Lookup a value in a nested dictionary using a dot-separated path.
-
-    Supports lists by applying the lookup to each item in the list.
-
-    returns tuples of (value, parent, full_path).
-    """
-
-    def __lookup(data: Any, parts: list[str], path: list[str], parent: Any) -> Generator[tuple[Any, Any, str]]:
-        if not parts:
-            if isinstance(data, list):
-                for didx, d in enumerate(data):
-                    yield from __lookup(d, [], [*path, str(didx)], parent)
-            else:
-                yield data, parent, ".".join(path)
-        elif isinstance(data, list):
-            for idx, item in enumerate(data):
-                yield from __lookup(item, parts, [*path, str(idx)], parent)
-        elif isinstance(data, dict):
-            part = parts[0]
-            rest = parts[1:]
-            if part in data:
-                yield from __lookup(data[part], rest, [*path, part], data)
-
-    yield from __lookup(data, path.split("."), [], None)
-
-
-def resolve_identifiers(data: dict, uow: UnitOfWork | None = None) -> None:
-    """Resolve identifiers in known locations within the input data."""
-    identifier_locations = {
-        "metadata.creators.person_or_org.identifiers": "names",
-        "metadata.creators.affiliations": "affiliations",
-        "metadata.contributors.person_or_org.identifiers": "names",
-        "metadata.contributors.affiliations": "affiliations",
-        "metadata.funding.funder": "funders",
-        "metadata.funding.award.identifiers": "funders",
-    }
-    for location, vocabulary in identifier_locations.items():
-        with contextlib.suppress(KeyError):
-            loc = list(dict_lookup_with_arrays(data, location))
-            for identifier, parent, path in loc:
-                try:
-                    resolve_identifier(identifier, parent, path, vocabulary, uow=uow)
-                except Exception as e:
-                    current_app.logger.exception(
-                        "Error resolving identifier %s at %s",
-                        identifier,
-                        path,
-                        exc_info=e,
-                    )
-
-
-def resolve_identifier(  # noqa: PLR0913 PLR0917
-    identifier: dict,
-    parent: Any,
-    path: str,
-    vocabulary: str,
-    vocabulary_key: str = "id",
-    uow: UnitOfWork | None = None,
-) -> None:
-    """Resolve a single identifier dictionary."""
-    id_key = "identifier" if "identifier" in identifier else "id"
-    if id_key not in identifier:
-        return
-    scheme = identifier.get("scheme")
-    if (vocabulary, scheme) not in identifier_resolvers:
-        return
-    resolver = identifier_resolvers[(vocabulary, scheme)]
-    resolved = resolver(
-        identifier[id_key],
-        vocabulary=vocabulary,
-        parent=parent,
-        create_vocabulary_record=True,
-        check_existing=True,
-        path=path,
-        uow=uow,
-    )
-    identifier[id_key] = resolved[vocabulary_key]
 
 
 class ORCIDImporter:
@@ -433,12 +351,3 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
     if create_vocabulary_record:
         return create_vocabulary_item(vocabulary_service_id=vocabulary, data=data.entry, uow=uow)
     return data.entry
-
-
-identifier_resolvers: dict[tuple[str, str | None], Callable] = {
-    ("names", "orcid"): resolve_orcid,
-    ("affiliations", "ror"): resolve_ror,
-    ("affiliations", None): resolve_ror,
-    ("funders", "ror"): resolve_ror,
-    ("funders", None): resolve_ror,
-}

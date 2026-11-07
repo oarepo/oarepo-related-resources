@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-import importlib.metadata
-
 DATACITE_URL = "https://api.datacite.org/dois"
 HANDLE_URL = "https://hdl.handle.net"
 CROSSREF_URL = "https://api.crossref.org/works/doi"
@@ -18,13 +16,14 @@ RELATED_RESOURCES_SERVICE_CONFIG_CLASS = "oarepo_related_resources.services.Rela
 RELATED_RESOURCES_RESOURCE_CLASS = "oarepo_related_resources.resources.RelatedResourcesResource"
 RELATED_RESOURCES_RESOURCE_CONFIG_CLASS = "oarepo_related_resources.resources.RelatedResourcesResourceConfig"
 
-try:
-    importlib.metadata.version("ccmm-invenio")
-    RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "dataset"
-    RELATED_RESOURCES_RECORD_UI_SCHEMA = (
-        "ccmm_invenio.resources.serializers.ui.related_resources.CCMMRelatedResourceUISchema"
-    )
-except importlib.metadata.PackageNotFoundError:
-    RELATED_RESOURCES_DEFAULT_RESOURCE_TYPE = "dataset"
-    RELATED_RESOURCES_RECORD_UI_SCHEMA = "invenio_rdm_records.resources.serializers.ui.UIRecordSchema"
+RELATED_RESOURCES_RECORD_UI_SCHEMA = "invenio_rdm_records.resources.serializers.ui.UIRecordSchema"
+"""UI schema of the resolved related records; a model with its own record shape sets its own one
+(ccmm-invenio does so in its ``invenio_config.module``)."""
+
 RELATED_RESOURCES_DEFAULT_TIMEOUT = 10
+
+# RELATED_RESOURCES_<PROVIDER>_MAPPER (RELATED_RESOURCES_DATACITE_MAPPER, RELATED_RESOURCES_CROSSREF_MAPPER,
+# RELATED_RESOURCES_HANDLE_MAPPER): the mapping of a resolver's metadata (its ``get_metadata``: the DataCite
+# attributes, the Crossref work, the landing page ``<head>`` of a Handle) to the record metadata, a callable
+# (or its import string) ``(metadata) -> (record metadata, list[ResolverProblem])``. It belongs to the model,
+# so there is no default here: ccmm-invenio sets them in its ``invenio_config.module``.

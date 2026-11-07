@@ -17,11 +17,6 @@ from marshmallow import ValidationError
 from oarepo_related_resources.services import idutils
 
 
-def resolved_identifier(identifier, *, vocabulary, **kwargs):
-    """Return a predictable vocabulary identifier."""
-    return {"id": f"{vocabulary}:{identifier}"}
-
-
 def ignore_ror(*args, **kwargs):
     """Stand in for resolving ROR records created from ORCID data."""
 
@@ -52,88 +47,6 @@ def test_create_vocabulary_item(monkeypatch):
 
     service.read.side_effect = Exception
     assert idutils.create_vocabulary_item("names", {"id": "new"}, uow="uow") == {"id": "new"}
-
-
-def test_dict_lookup():
-    data = {
-        "metadata": {
-            "creators": [
-                {"identifiers": [{"identifier": "first"}, {"identifier": "second"}]},
-                {"identifiers": [{"identifier": "third"}]},
-                {"name": "without identifiers"},
-            ]
-        }
-    }
-
-    assert list(idutils.dict_lookup_with_arrays(data, "metadata.creators.identifiers")) == [
-        (
-            {"identifier": "first"},
-            {"identifiers": [{"identifier": "first"}, {"identifier": "second"}]},
-            "metadata.creators.0.identifiers.0",
-        ),
-        (
-            {"identifier": "second"},
-            {"identifiers": [{"identifier": "first"}, {"identifier": "second"}]},
-            "metadata.creators.0.identifiers.1",
-        ),
-        (
-            {"identifier": "third"},
-            {"identifiers": [{"identifier": "third"}]},
-            "metadata.creators.1.identifiers.0",
-        ),
-    ]
-
-
-def test_resolve_identifiers(monkeypatch):
-    data = {
-        "metadata": {
-            "creators": [
-                {
-                    "person_or_org": {
-                        "identifiers": [
-                            {"identifier": "0000-0001", "scheme": "orcid"},
-                            {"identifier": "unchanged", "scheme": "other"},
-                        ]
-                    },
-                    "affiliations": [{"id": "01abc", "scheme": "ror"}],
-                }
-            ],
-            "funding": [{"funder": {"id": "02def"}, "award": {"identifiers": [{"id": "03ghi"}]}}],
-        }
-    }
-    monkeypatch.setattr(
-        idutils,
-        "identifier_resolvers",
-        {
-            ("names", "orcid"): resolved_identifier,
-            ("affiliations", "ror"): resolved_identifier,
-            ("funders", None): resolved_identifier,
-        },
-    )
-
-    idutils.resolve_identifiers(data)
-
-    assert data == {
-        "metadata": {
-            "creators": [
-                {
-                    "person_or_org": {
-                        "identifiers": [
-                            {"identifier": "names:0000-0001", "scheme": "orcid"},
-                            {"identifier": "unchanged", "scheme": "other"},
-                        ]
-                    },
-                    "affiliations": [{"id": "affiliations:01abc", "scheme": "ror"}],
-                }
-            ],
-            "funding": [
-                {
-                    "funder": {"id": "funders:02def"},
-                    "award": {"identifiers": [{"id": "funders:03ghi"}]},
-                }
-            ],
-        }
-    }
 
 
 def test_orcid_to_names():

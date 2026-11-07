@@ -22,7 +22,7 @@ from sqlalchemy.exc import NoResultFound
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from oarepo_related_resources.resolvers import MetadataResolver
+    from oarepo_related_resources.resolvers.base import ProblemReporter
 
 
 def escape_lucene(s: str) -> str:
@@ -36,33 +36,6 @@ def split_personal_name(name: str) -> tuple[str, str]:
         family, given = (part.strip() for part in name.split(",", 1))
         return family, given
     return name.strip(), ""
-
-
-def build_person_or_org(  # noqa PLR0913
-    *,
-    name: str | None,
-    type_: str = "personal",
-    given: str | None = None,
-    family: str | None = None,
-    identifiers: list | None = None,
-    affiliations: list | None = None,
-) -> dict:
-    """Build an RDM creator/contributor entry.
-
-    Returns ``{"person_or_org": {...}}`` with optional ``"affiliations"``. Optional
-    fields are omitted when falsy, matching Invenio RDM's tolerated shape.
-    """
-    person: dict = {"name": name, "type": type_}
-    if given:
-        person["given_name"] = given
-    if family:
-        person["family_name"] = family
-    if identifiers:
-        person["identifiers"] = identifiers
-    entry: dict = {"person_or_org": person}
-    if affiliations:
-        entry["affiliations"] = affiliations
-    return entry
 
 
 def normalize_date(value: Any) -> str | None:
@@ -216,7 +189,7 @@ def handle_errors(alert_user: bool = False) -> Any:
         """Wrap the given function with error handling logic."""
 
         @wraps(func)
-        def inner(self: MetadataResolver, *args: Any, **kwargs: Any) -> Any | None:
+        def inner(self: ProblemReporter, *args: Any, **kwargs: Any) -> Any | None:
             """Execute the wrapped function with safe error handling."""
             try:
                 return func(self, *args, **kwargs)

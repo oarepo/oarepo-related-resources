@@ -83,18 +83,8 @@ def zenodo_imported_metadata():
 
 @pytest.fixture
 def handle_imported_metadata():
+    """Return what tests/mappers.py:map_handle makes of the landing page of the handle."""
     return {
-        "creators": [
-            {
-                "person_or_org": {
-                    "family_name": "Mírovský",
-                    "given_name": "Jiří",
-                    "name": "Mírovský, Jiří",
-                    "type": "personal",
-                }
-            }
-        ],
-        "publication_date": "2026-04-30",
         "resource_type": {"id": "dataset"},
         "title": "SiR 2.0",
     }
@@ -102,18 +92,8 @@ def handle_imported_metadata():
 
 @pytest.fixture
 def crossref_imported_metadata():
+    """Return what tests/mappers.py:map_crossref makes of the Crossref work."""
     return {
-        "creators": [
-            {
-                "person_or_org": {
-                    "family_name": "Montgomery",
-                    "given_name": "Raymond B.",
-                    "name": "Montgomery, Raymond B.",
-                    "type": "personal",
-                }
-            }
-        ],
-        "publication_date": "1940",
         "publisher": "Massachusetts Institute of Technology and Woods Hole Oceanographic Institution",
         "resource_type": {"id": "dataset"},
         "title": "Observations of vertical humidity distribution above the ocean surface and their relation to "
@@ -185,4 +165,7 @@ def create_app(instance_path, entry_points):
 @pytest.fixture(scope="module")
 def app_config(app_config):
     app_config["APP_RDM_ADMIN_EMAIL_RECIPIENT"] = "bugsmasher@cesnet.cz"
+    app_config["RELATED_RESOURCES_DATACITE_MAPPER"] = "tests.mappers:map_datacite"
+    app_config["RELATED_RESOURCES_CROSSREF_MAPPER"] = "tests.mappers:map_crossref"
+    app_config["RELATED_RESOURCES_HANDLE_MAPPER"] = "tests.mappers:map_handle"
     return app_config
