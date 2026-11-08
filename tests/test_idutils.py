@@ -244,3 +244,18 @@ def test_resolve_ror_rejects_error_response(monkeypatch):
             path="metadata.affiliations.0",
             session=session,
         )
+
+
+@pytest.mark.parametrize(("config", "expected"), [({}, 30), ({"ROR_TIMEOUT": 7}, 7)])
+def test_resolve_ror_timeout_is_configurable(monkeypatch, config, expected):
+    monkeypatch.setattr(idutils, "current_service_registry", Mock())
+    session = Mock()
+    session.get.return_value = Mock(status_code=404)
+    app = Flask(__name__)
+    Babel(app)
+    app.config.update(ROR_CLIENT_ID="client-id", **config)
+
+    with app.app_context(), pytest.raises(ValidationError):
+        idutils.resolve_ror("missing", "funders", check_existing=False, session=session)
+
+    assert session.get.call_args.kwargs["timeout"] == expected

@@ -337,7 +337,7 @@ def resolve_ror(  # noqa: PLR0913 PLR0917
     session = session or create_session_with_retries()
     headers = {"Accept": "application/json", "Client-ID": client_id}
     url = f"https://api.ror.org/v2/organizations/{quote(ror)}"
-    resp = session.get(url, headers=headers)
+    resp = session.get(url, headers=headers, timeout=current_app.config.get("ROR_TIMEOUT", 30))
     if resp.status_code != HTTP_OK:
         raise ValidationError(
             str(_("ROR ID %(ror)s could not be resolved.", ror=ror)),
