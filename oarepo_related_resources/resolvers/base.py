@@ -223,6 +223,9 @@ class MetadataResolver(ProblemReporter, ABC):
 class DoiResolverBase(MetadataResolver):
     """Shared base for DOI-backed resolvers (DataCite, Crossref)."""
 
+    def normalize_doi_identifier(identifier: str) -> str:
+        return normalize_doi(identifier).lower()
+
     scheme_url = "https://doi.org"
     resolves_identifier = staticmethod(lambda identifier: bool(is_doi(identifier)))
-    normalize_identifier = staticmethod(normalize_doi)
+    normalize_identifier = staticmethod(normalize_doi_identifier)
