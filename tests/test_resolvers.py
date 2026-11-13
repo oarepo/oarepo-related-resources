@@ -77,10 +77,7 @@ def test_datacite_resolver_builds_expected_upstream_url(app, zenodo_doi):
 
 
 def test_doi_lowercase(app):
-    assert (
-        DataciteResolver().normalize_identifier("https://doi.org/10.1234/UPPERCASE")
-        == "10.1234/uppercase"
-    )
+    assert DataciteResolver().normalize_identifier("https://doi.org/10.1234/UPPERCASE") == "10.1234/uppercase"
 
 
 def test_crossref_resolver_builds_expected_upstream_url(app, crossref_doi):
