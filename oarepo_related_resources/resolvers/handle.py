@@ -28,11 +28,16 @@ HTTP_BAD_REQUEST = 400
 class HandleResolver(MetadataResolver):
     """Resolver for Handle persistent identifiers."""
 
+    @staticmethod
+    def normalize_handle_identifier(identifier: str) -> str:
+        """Normalize a Handle and canonicalize its case."""
+        return normalize_handle(identifier).lower()
+
     provider = "Handle"
     scheme_url = "https://hdl.handle.net"
     exists_allow_redirects = False
     resolves_identifier = staticmethod(lambda url: bool(is_handle(url)))
-    normalize_identifier = staticmethod(normalize_handle)
+    normalize_identifier = normalize_handle_identifier
 
     not_found_message = _("The identifier looks like a Handle, but it was not found in the Handle registry.")
     unexpected_error_message = _("Unexpected error while resolving the Handle. Please fill the metadata manually.")
