@@ -13,7 +13,7 @@ from oarepo_related_resources.resolvers import (
     HandleResolver,
     ResolverMapping,
 )
-from oarepo_related_resources.resolvers.base import ResolverProblem, ResolverProblemLevel
+from oarepo_related_resources.resolvers.base import MetadataResolver, ResolverProblem, ResolverProblemLevel
 from oarepo_related_resources.resolvers.utils import handle_errors
 
 
@@ -58,6 +58,32 @@ def test_resolver_mapping_instances_do_not_share_state(app):
     first.resolve_metadata()
     assert second.problems == []
     assert second.processed_metadata == {}
+
+
+def test_resolver_resets_state(app, monkeypatch):
+    class TestResolver(MetadataResolver):
+        provider = "Test"
+
+        def fetch(self, identifier):
+            return identifier
+
+        def get_metadata(self, response):
+            return response
+
+    first_problem = ResolverProblem("Test", "first", ResolverProblemLevel.WARNING)
+    second_problem = ResolverProblem("Test", "second", ResolverProblemLevel.WARNING)
+    results = {
+        "first": ({"title": "First"}, [first_problem]),
+        "second": ({"publisher": "Second"}, [second_problem]),
+    }
+    monkeypatch.setitem(app.config, "RELATED_RESOURCES_TEST_MAPPER", results.__getitem__)
+    resolver = TestResolver()
+
+    resolver.resolve("first")
+    metadata, problems = resolver.resolve("second")
+
+    assert metadata == {"publisher": "Second"}
+    assert problems == [second_problem]
 
 
 RESOLVERS = [

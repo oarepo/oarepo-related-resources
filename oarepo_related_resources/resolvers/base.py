@@ -215,6 +215,11 @@ class MetadataResolver(ProblemReporter, ABC):
         If the metadata is resolved, returns (metadata_dict, list[ResolverProblem]).
         If the metadata can not be resolved, raise UpstreamFetchError.
         """
+        # reset state so metadata and problems cannot leak between PID resolutions.
+        self.metadata = None
+        self.processed_metadata = {}
+        self.problems = []
+
         response = self.fetch(identifier)
         self.metadata = self.get_metadata(response)
         return self.resolve_metadata()
