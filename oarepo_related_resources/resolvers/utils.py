@@ -100,7 +100,7 @@ def search_vocabulary_by_prop(
     """Return vocabulary search hits matching ``props.<prop>:"value"``."""
     escaped = escape_lucene(value)
     try:
-        VocabularyType.query.filter_by(id=vocabulary_id).one()  # type: ignore[reportAttributeAccessIssue] # ty: ignore[unresolved-attribute]
+        VocabularyType.query.filter_by(id=vocabulary_id).one()  # type: ignore[reportAttributeAccessIssue] # ty: ignore[missing-attribute]
     except NoResultFound:
         current_app.logger.exception(
             "Error searching for '%s' in vocabulary of type '%s', the vocabulary type not resolvable.",

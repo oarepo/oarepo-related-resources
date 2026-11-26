@@ -19,7 +19,7 @@ from invenio_pidstore.errors import PersistentIdentifierError
 from invenio_records_resources.proxies import current_service_registry
 from invenio_vocabularies.contrib.common.ror.datastreams import RORTransformer
 from invenio_vocabularies.datastreams.datastreams import StreamEntry
-from lxml import etree  # type: ignore[attr-defined]
+from lxml import etree  # type: ignore[attr-defined]  # ty: ignore[missing-module-member]
 from marshmallow import ValidationError
 from opensearchpy.exceptions import OpenSearchException
 from sqlalchemy.exc import NoResultFound

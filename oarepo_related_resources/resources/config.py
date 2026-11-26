@@ -70,14 +70,14 @@ class RelatedResourcesResourceConfig(ErrorHandlersMixin, ResourceConfig, Configu
     )
 
     @property
-    def response_handlers(self) -> Mapping[str, ResponseHandler]:  # ty: ignore[invalid-property-type-override]
+    def response_handlers(self) -> Mapping[str, ResponseHandler]:  # ty: ignore[incompatible-property-override]
         """Response handlers."""
         return {
             "application/json": ResponseHandler(JSONSerializer()),
             "application/vnd.inveniordm.v1+json": ResponseHandler(RelatedResourcesUIJSONSerializer(self.ui_schema)),
         }
 
-    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # ty: ignore[invalid-assignment, invalid-attribute-override]
+    error_handlers: Mapping[type[Exception], Callable[[Exception], Response]] = {  # ty: ignore[invalid-assignment, incompatible-attribute-override]
         **ErrorHandlersMixin.error_handlers,
         PIDDoesNotExistError: create_error_handler(
             lambda e: HTTPJSONException(

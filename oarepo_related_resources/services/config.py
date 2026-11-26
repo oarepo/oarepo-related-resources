@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from invenio_rdm_records.services.schemas import MetadataSchema  # type: ignore[attr-defined]
+from invenio_rdm_records.services.schemas import MetadataSchema  # type: ignore[attr-defined]  # ty: ignore[missing-module-member]
 from invenio_records_resources.services.base.config import (
     ConfiguratorMixin,
     FromConfig,
